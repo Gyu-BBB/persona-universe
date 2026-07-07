@@ -1,0 +1,32 @@
+{
+  "name": "persona-universe",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ontology memory chat interface with GPT API, Ollama, and a 3D persona graph.",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "node --experimental-sqlite server/index.js",
+    "dev:client": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "start": "NODE_ENV=production node --experimental-sqlite server/index.js",
+    "smoke": "node scripts/smoke-test.js",
+    "visual-check": "node scripts/visual-check.js",
+    "memory-routing-check": "node --experimental-sqlite scripts/memory-routing-check.js",
+    "ollama-multiturn-check": "node --experimental-sqlite scripts/ollama-multiturn-check.js",
+    "ontology-check": "node --experimental-sqlite scripts/ontology-check.js"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "express": "^4.21.2",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.171.0",
+    "vite": "^6.0.7"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.1"
+  }
+}
