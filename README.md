@@ -30,6 +30,7 @@ Ollama is used by default when a local model is available. OpenAI is optional.
 
 - GPT API and Ollama provider support
 - Persona-scoped memory and reset
+- Locked default character templates plus custom characters
 - Dynamic hybrid conversation context:
   - recent raw history for short-term flow
   - compressed session memory for longer conversations
@@ -106,3 +107,7 @@ npm run ollama-multiturn-check
 ```
 
 This script requires a local Ollama model such as `gemma4:12b`.
+
+## Product Direction
+
+See [docs/PRODUCT_PLAN.md](docs/PRODUCT_PLAN.md).

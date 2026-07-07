@@ -37,6 +37,12 @@ function stringify(value) {
   return JSON.stringify(value ?? {});
 }
 
+function userError(message, statusCode = 400) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
 const DEFAULT_PERSONA = {
   templateKey: "serin",
   avatar: "서",
@@ -81,6 +87,7 @@ const PERSONA_TEMPLATES = [
     color: "#fb7185"
   }
 ];
+const LOCKED_TEMPLATE_KEYS = new Set(PERSONA_TEMPLATES.map((template) => template.templateKey));
 
 export class OntologyStore {
   constructor(db) {
@@ -914,9 +921,10 @@ export class OntologyStore {
 
   deletePersona(personaId) {
     const persona = this.statements.getPersona.get(personaId);
-    if (!persona) throw new Error("persona not found");
+    if (!persona) throw userError("persona not found", 404);
+    if (LOCKED_TEMPLATE_KEYS.has(persona.template_key)) throw userError("기본 캐릭터 템플릿은 삭제할 수 없어요.", 409);
     const activeCount = this.statements.countActivePersonas.get().count;
-    if (activeCount <= 1) throw new Error("마지막 페르소나는 삭제할 수 없어요.");
+    if (activeCount <= 1) throw userError("마지막 페르소나는 삭제할 수 없어요.", 409);
 
     this.db.exec("BEGIN");
     try {

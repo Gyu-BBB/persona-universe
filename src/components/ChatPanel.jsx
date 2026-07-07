@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Cpu, Plus, RotateCcw, Send, Trash2, UserRound, WifiOff } from "lucide-react";
+import { Bot, Cpu, LockKeyhole, Plus, RotateCcw, Send, Trash2, UserRound, WifiOff } from "lucide-react";
 
 export function ChatPanel({
   messages,
@@ -31,6 +31,31 @@ export function ChatPanel({
     return providers;
   }, [allModels]);
   const personaInitial = persona?.avatar || persona?.name?.trim()?.[0] || "P";
+  const templatePersonas = useMemo(() => (personas || []).filter((item) => item.templateKey), [personas]);
+  const customPersonas = useMemo(() => (personas || []).filter((item) => !item.templateKey), [personas]);
+  const isTemplatePersona = Boolean(persona?.templateKey);
+
+  function PersonaButton({ item }) {
+    const isActive = item.id === persona?.id;
+    const avatar = item.avatar || item.name?.trim()?.[0] || "P";
+    return (
+      <button
+        type="button"
+        className={`persona-tile ${isActive ? "is-active" : ""}`}
+        style={{ "--active-persona": item.color || "#facc15" }}
+        onClick={() => onPersonaChange(item.id)}
+        disabled={isSending || isActive}
+        title={item.description || item.name}
+      >
+        <span className="persona-tile-avatar">{avatar}</span>
+        <span className="persona-tile-copy">
+          <strong>{item.name}</strong>
+          <small>{item.templateKey ? "기본" : "내 캐릭터"}</small>
+        </span>
+        {item.templateKey ? <LockKeyhole size={13} /> : null}
+      </button>
+    );
+  }
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
@@ -64,26 +89,6 @@ export function ChatPanel({
 
   return (
     <section className="chat-panel">
-      <div className="persona-strip">
-        <label className="persona-select">
-          <span>대화할 캐릭터</span>
-          <select value={persona?.id || ""} onChange={(event) => onPersonaChange(event.target.value)} disabled={isSending}>
-            {(personas || []).map((item) => (
-              <option key={item.id} value={item.id}>{item.name}</option>
-            ))}
-          </select>
-        </label>
-        <button className="icon-button" type="button" onClick={onNewPersona} title="페르소나 생성" disabled={isSending}>
-          <Plus size={17} />
-        </button>
-        <button className="icon-button danger" type="button" onClick={onResetPersona} title="선택 페르소나 초기화" disabled={isSending || !persona}>
-          <RotateCcw size={16} />
-        </button>
-        <button className="icon-button danger" type="button" onClick={onDeletePersona} title="선택 페르소나 삭제" disabled={isSending || !persona || personas.length <= 1}>
-          <Trash2 size={16} />
-        </button>
-      </div>
-
       {persona ? (
         <section className="persona-card" style={{ "--active-persona": persona.color || "#facc15" }}>
           <div className="persona-avatar">{personaInitial}</div>
@@ -91,8 +96,30 @@ export function ChatPanel({
             <strong>{persona.name}</strong>
             <p>{persona.description || "대화 속 기억을 바탕으로 반응하는 페르소나"}</p>
           </div>
+          <div className="persona-actions">
+            <button className="icon-button" type="button" onClick={onNewPersona} title="캐릭터 생성" disabled={isSending}>
+              <Plus size={17} />
+            </button>
+            <button className="icon-button danger" type="button" onClick={onResetPersona} title="기억 초기화" disabled={isSending || !persona}>
+              <RotateCcw size={16} />
+            </button>
+            <button className="icon-button danger" type="button" onClick={onDeletePersona} title={isTemplatePersona ? "기본 캐릭터는 삭제할 수 없음" : "캐릭터 삭제"} disabled={isSending || !persona || personas.length <= 1 || isTemplatePersona}>
+              {isTemplatePersona ? <LockKeyhole size={15} /> : <Trash2 size={16} />}
+            </button>
+          </div>
         </section>
       ) : null}
+
+      <section className="persona-roster">
+        <div className="persona-roster-group">
+          {templatePersonas.map((item) => <PersonaButton key={item.id} item={item} />)}
+        </div>
+        {customPersonas.length ? (
+          <div className="persona-roster-group custom">
+            {customPersonas.map((item) => <PersonaButton key={item.id} item={item} />)}
+          </div>
+        ) : null}
+      </section>
 
       <div className="model-strip">
         <div className="provider-toggle" aria-label="provider">

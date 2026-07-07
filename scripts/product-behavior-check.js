@@ -28,6 +28,13 @@ const templateNames = new Set(["서린", "하온", "이안", "미로", "노아"]
 const seededTemplates = personas.filter((persona) => templateNames.has(persona.name));
 assert(seededTemplates.length >= 5, `expected at least 5 seeded templates, got ${seededTemplates.map((item) => item.name).join(", ")}`);
 assert(seededTemplates.every((persona) => persona.avatar && persona.description && persona.systemPrompt), "seeded templates need character metadata");
+try {
+  store.deletePersona(seededTemplates[0].id);
+  throw new Error("locked template deletion unexpectedly succeeded");
+} catch (error) {
+  assert(/기본 캐릭터/.test(error.message), `locked template deletion returned wrong error: ${error.message}`);
+}
+assert(store.listPersonas().some((persona) => persona.id === seededTemplates[0].id), "locked template disappeared after failed deletion");
 
 const deletionPersona = store.createPersona({
   name: "삭제 테스트",

@@ -165,7 +165,7 @@ app.get("*", (_req, res, next) => {
 
 app.use((error, _req, res, _next) => {
   console.error(error);
-  res.status(500).json({ error: error.message });
+  res.status(error.statusCode || 500).json({ error: error.message });
 });
 
 app.listen(port, "127.0.0.1", () => {
