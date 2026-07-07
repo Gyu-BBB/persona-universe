@@ -37,6 +37,10 @@ function stringify(value) {
   return JSON.stringify(value ?? {});
 }
 
+function stringifyArray(value) {
+  return JSON.stringify(Array.isArray(value) ? value : []);
+}
+
 function userError(message, statusCode = 400) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -654,6 +658,45 @@ export function getPersonaTemplateProfile(templateKey) {
   return TEMPLATE_BY_KEY.get(templateKey)?.characterProfile || [];
 }
 
+const CUSTOM_PROFILE_FIELDS = [
+  ["age", "persona_age", "has_persona_age", "나이"],
+  ["occupation", "persona_occupation", "has_persona_occupation", "직업"],
+  ["background", "persona_background", "has_persona_background", "배경"],
+  ["trait", "persona_trait", "has_persona_trait", "성격"],
+  ["signature", "persona_signature", "has_persona_signature", "특징"],
+  ["strength", "persona_strength", "has_persona_strength", "강점"],
+  ["growth", "persona_growth_edge", "has_persona_growth_edge", "조심하는 점"],
+  ["likes", "persona_preference", "likes_persona", "좋아하는 것"],
+  ["avoids", "persona_aversion", "avoids_persona", "불편한 것"],
+  ["speech", "persona_speech", "has_persona_speech", "말투"],
+  ["boundary", "persona_boundary", "has_persona_boundary", "관계 방식"]
+];
+
+function normalizeCharacterProfile(profile, personaName) {
+  const inputByKey = new Map(
+    (Array.isArray(profile) ? profile : [])
+      .filter((item) => item?.key)
+      .map((item) => [item.key, item])
+  );
+  return CUSTOM_PROFILE_FIELDS
+    .map(([key, type, relation, category]) => {
+      const item = inputByKey.get(key);
+      const value = String(item?.value || "").trim();
+      if (!value) return null;
+      return {
+        key,
+        type: item?.type || type,
+        relation: item?.relation || relation,
+        label: item?.label || `${category}: ${value}`,
+        value,
+        category: item?.category || category,
+        summary: item?.summary || `${personaName}의 ${category} 설정은 ${value}입니다.`,
+        rememberedAs: item?.rememberedAs || `${personaName}는 ${category}을 ${value}로 가진 캐릭터입니다.`
+      };
+    })
+    .filter(Boolean);
+}
+
 export class OntologyStore {
   constructor(db) {
     this.db = db;
@@ -662,6 +705,7 @@ export class OntologyStore {
     this.migrateExistingRows(this.defaultPersona.id);
     this.ensureOntologySchema();
     this.statements = this.prepareStatements();
+    this.cleanupDuplicateTemplateCharacterNodes();
     this.materializeRdfVocabulary();
     this.materializeExistingOntology();
   }
@@ -673,8 +717,8 @@ export class OntologyStore {
       getAnyPersona: this.db.prepare("SELECT * FROM personas WHERE id = ?"),
       countActivePersonas: this.db.prepare("SELECT COUNT(*) AS count FROM personas WHERE active = 1"),
       insertPersona: this.db.prepare(`
-        INSERT INTO personas (id, name, description, system_prompt, color, template_key, avatar, active, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+        INSERT INTO personas (id, name, description, system_prompt, color, template_key, avatar, character_profile, active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
       `),
       touchPersona: this.db.prepare("UPDATE personas SET updated_at = ? WHERE id = ?"),
       deactivatePersona: this.db.prepare("UPDATE personas SET active = 0, updated_at = ? WHERE id = ?"),
@@ -1220,12 +1264,12 @@ export class OntologyStore {
     const timestamp = nowIso();
     const findTemplate = this.db.prepare("SELECT * FROM personas WHERE template_key = ? LIMIT 1");
     const insertTemplate = this.db.prepare(`
-      INSERT INTO personas (id, name, description, system_prompt, color, template_key, avatar, active, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      INSERT INTO personas (id, name, description, system_prompt, color, template_key, avatar, character_profile, active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
     `);
     const updateTemplate = this.db.prepare(`
       UPDATE personas
-      SET name = ?, description = ?, system_prompt = ?, color = ?, avatar = ?, active = 1, updated_at = ?
+      SET name = ?, description = ?, system_prompt = ?, color = ?, avatar = ?, character_profile = ?, active = 1, updated_at = ?
       WHERE template_key = ?
     `);
     for (const template of PERSONA_TEMPLATES) {
@@ -1236,6 +1280,7 @@ export class OntologyStore {
           template.systemPrompt,
           template.color,
           template.avatar,
+          stringifyArray(template.characterProfile),
           timestamp,
           template.templateKey
         );
@@ -1249,6 +1294,7 @@ export class OntologyStore {
         template.color,
         template.templateKey,
         template.avatar,
+        stringifyArray(template.characterProfile),
         timestamp,
         timestamp
       );
@@ -1283,6 +1329,37 @@ export class OntologyStore {
       `${personaId}:persona:assistant`,
       `${personaId}:project:persona-universe`
     );
+  }
+
+  cleanupDuplicateTemplateCharacterNodes() {
+    const templates = this.db.prepare("SELECT id, template_key FROM personas WHERE active = 1 AND template_key IS NOT NULL").all();
+    if (!templates.length) return;
+    const listObsoleteNodes = this.db.prepare(`
+      SELECT id
+      FROM nodes
+      WHERE persona_id = ? AND canonical_key LIKE ?
+    `);
+    const deleteRdfTriplesForNode = this.db.prepare(`
+      DELETE FROM rdf_triples
+      WHERE subject_iri = ? OR object_iri = ?
+    `);
+    const deleteNode = this.db.prepare("DELETE FROM nodes WHERE id = ?");
+
+    this.db.exec("BEGIN");
+    try {
+      for (const template of templates) {
+        const obsoleteNodes = listObsoleteNodes.all(template.id, `${template.id}:character:${template.template_key}:%`);
+        for (const node of obsoleteNodes) {
+          const iri = nodeIri(node.id);
+          deleteRdfTriplesForNode.run(iri, iri);
+          deleteNode.run(node.id);
+        }
+      }
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   scopeKey(personaId, canonicalKey) {
@@ -1450,12 +1527,14 @@ export class OntologyStore {
 
   normalizePersona(row) {
     if (!row) return null;
+    const templateProfile = getPersonaTemplateProfile(row.template_key);
+    const customProfile = parseJson(row.character_profile, []);
     return {
       ...row,
       templateKey: row.template_key,
       systemPrompt: row.system_prompt,
       avatar: row.avatar || row.name?.trim()?.[0] || "P",
-      characterProfile: getPersonaTemplateProfile(row.template_key),
+      characterProfile: templateProfile.length ? templateProfile : Array.isArray(customProfile) ? customProfile : [],
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };
@@ -1483,10 +1562,11 @@ export class OntologyStore {
     return this.normalizePersona(this.defaultPersona);
   }
 
-  createPersona({ name, description = "", systemPrompt = "", color = "#facc15", templateKey = null, avatar = "" }) {
+  createPersona({ name, description = "", systemPrompt = "", color = "#facc15", templateKey = null, avatar = "", characterProfile = [] }) {
     const id = crypto.randomUUID();
     const timestamp = nowIso();
     const resolvedName = name || "새 페르소나";
+    const normalizedProfile = normalizeCharacterProfile(characterProfile, resolvedName);
     this.statements.insertPersona.run(
       id,
       resolvedName,
@@ -1495,6 +1575,7 @@ export class OntologyStore {
       color,
       templateKey,
       avatar || resolvedName.trim()[0] || "P",
+      stringifyArray(normalizedProfile),
       timestamp,
       timestamp
     );

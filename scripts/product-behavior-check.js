@@ -73,6 +73,35 @@ assert(nextPersona?.id && nextPersona.id !== deletionPersona.id, "deletePersona 
 const afterDelete = store.listPersonas().map((persona) => persona.id);
 assert(!afterDelete.includes(deletionPersona.id), "deleted persona is still active");
 
+const customCharacterPersona = store.createPersona({
+  name: "커스텀 캐릭터 테스트",
+  description: "custom character profile check persona",
+  systemPrompt: "custom character profile check",
+  avatar: "커",
+  characterProfile: [
+    { key: "age", value: "34살" },
+    { key: "occupation", value: "기억 정원사" },
+    { key: "trait", value: "신중하고 따뜻함" },
+    { key: "speech", value: "짧고 부드러운 존댓말" },
+    { key: "boundary", value: "사용자의 속도에 맞춰 걷기" }
+  ]
+});
+try {
+  engine.seedCore(customCharacterPersona.id);
+  const session = store.getOrCreateDefaultSession(customCharacterPersona.id);
+  const state = engine.getState({ personaId: customCharacterPersona.id, sessionId: session.id });
+  const characterNodes = state.graph.nodes.filter((node) => node.properties?.ontologyRole === "persona_profile_fact");
+  const characterRelations = new Set(state.graph.edges.map((edge) => edge.relation_type));
+  assert(characterNodes.some((node) => node.label === "나이: 34살"), "custom persona age memory is missing");
+  assert(characterNodes.some((node) => node.label === "직업: 기억 정원사"), "custom persona occupation memory is missing");
+  assert(characterNodes.some((node) => node.label === "성격: 신중하고 따뜻함"), "custom persona trait memory is missing");
+  assert(characterRelations.has("has_persona_age"), "custom persona has no age ontology edge");
+  assert(characterRelations.has("has_persona_occupation"), "custom persona has no occupation ontology edge");
+  assert(store.validateOntology(customCharacterPersona.id).ok, "custom persona ontology validation failed");
+} finally {
+  cleanup(customCharacterPersona.id);
+}
+
 const emotionalPersona = store.createPersona({
   name: "감정 기억 테스트",
   description: "temporary emotional memory check persona",
@@ -112,6 +141,7 @@ try {
       name: persona.name,
       count: persona.characterProfile.length
     })),
+    customCharacterMemory: "나이: 34살 / 직업: 기억 정원사",
     deletedPersonaRemoved: !afterDelete.includes(deletionPersona.id),
     emotionalNode: "힘든 일: 회사일",
     turnSummary: state.summaries.turn.slice(0, 3),

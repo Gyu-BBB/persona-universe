@@ -3,6 +3,8 @@ import { Bot, Cpu, LockKeyhole, Plus, RotateCcw, Send, Trash2, UserRound, WifiOf
 
 export function ChatPanel({
   messages,
+  session,
+  sessions,
   persona,
   personas,
   provider,
@@ -15,6 +17,7 @@ export function ChatPanel({
   onNewPersona,
   onResetPersona,
   onDeletePersona,
+  onSessionChange,
   onProviderChange,
   onModelChange,
   onSend,
@@ -156,35 +159,45 @@ export function ChatPanel({
         </button>
       </div>
 
-      <label className="select-row">
-        <span>Model</span>
-        <select value={model} onChange={(event) => onModelChange(event.target.value)} disabled={isSending}>
-          {models.length === 0 ? <option value="">unavailable</option> : null}
-          {models.map((item) => (
-            <option key={`${item.provider}:${item.name}`} value={item.name}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="context-controls">
+        <label>
+          <span>대화</span>
+          <select value={session?.id || ""} onChange={(event) => onSessionChange(event.target.value)} disabled={isSending || !sessions?.length}>
+            {(sessions || []).map((item) => (
+              <option key={item.id} value={item.id}>{item.title}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>모델</span>
+          <select value={model} onChange={(event) => onModelChange(event.target.value)} disabled={isSending}>
+            {models.length === 0 ? <option value="">unavailable</option> : null}
+            {models.map((item) => (
+              <option key={`${item.provider}:${item.name}`} value={item.name}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       <div className="message-list" aria-live="polite" ref={listRef}>
         {messages.length === 0 ? (
           <div className="empty-chat">
-            <p>새 세션 대기 중</p>
+            <p>말을 걸어보세요</p>
           </div>
         ) : null}
         {messages.map((message) => (
           <article key={message.id} className={`message ${message.role}`}>
-              <div className="message-avatar">
-                {message.role === "user" ? <UserRound size={16} /> : personaInitial}
-              </div>
-              <div className="message-body">
-                <span>{message.role === "user" ? "User" : persona?.name || "Persona"}</span>
-                <p>{message.content}</p>
-              </div>
-            </article>
-          ))}
+            <div className="message-avatar">
+              {message.role === "user" ? <UserRound size={16} /> : personaInitial}
+            </div>
+            <div className="message-body">
+              <span>{message.role === "user" ? "나" : persona?.name || "Persona"}</span>
+              <p>{message.content}</p>
+            </div>
+          </article>
+        ))}
         {isSending ? (
           <article className="message assistant pending">
             <div className="message-avatar">{personaInitial || <Bot size={16} />}</div>
@@ -194,7 +207,7 @@ export function ChatPanel({
                 <div className="loader-ring" />
                 <div>
                   <strong>응답 생성 중</strong>
-                  <p>턴 기억 추출, 관계 업데이트, 페르소나 컨텍스트 조립 · {elapsedSeconds}s</p>
+                  <p>기억을 살피는 중 · {elapsedSeconds}s</p>
                 </div>
               </div>
             </div>

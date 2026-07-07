@@ -1,6 +1,6 @@
 # Persona Universe
 
-Ontology memory chat interface with GPT API, Ollama, RDF-style memory, and a 3D persona graph.
+Ontology memory chat interface with GPT API, Ollama, RDF-style memory, and a 3D persona memory universe.
 
 Persona Universe is an experimental chat app for building LLM personas with visible, editable-feeling long-term memory. It stores user facts, preferences, corrections, goals, conversation concerns, and relationship context as connected ontology memory rather than only as raw chat history.
 
@@ -29,9 +29,9 @@ Ollama is used by default when a local model is available. OpenAI is optional.
 ## Features
 
 - GPT API and Ollama provider support
-- Persona-scoped memory and reset
+- Persona-scoped sessions, memory, reset, and deletion for custom characters
 - Locked default character templates with seeded character memories for age, occupation, personality, tone, preferences, strengths, and relationship style
-- Custom characters
+- Custom character studio with detailed profile fields that become ontology memory nodes
 - Dynamic hybrid conversation context:
   - recent raw history for short-term flow
   - compressed session memory for longer conversations
@@ -39,7 +39,7 @@ Ollama is used by default when a local model is available. OpenAI is optional.
   - transcript retrieval for "what did I say earlier?" questions
 - SQLite-backed ontology memory graph
 - RDF triples, Turtle export, SPARQL SELECT subset, and lightweight reasoning
-- 3D memory universe with orbit, zoom, pan, drag, hover, and click inspection
+- 3D memory universe with orbit, zoom, pan, drag, hover, click inspection, and category filters
 - Current/replaced memory handling for corrections
 
 ## Architecture
@@ -47,13 +47,17 @@ Ollama is used by default when a local model is available. OpenAI is optional.
 ```text
 Frontend
   ChatPanel
-    persona selector
-    persona reset
+    compact persona roster
+    character studio
+    session switcher
+    persona reset/delete controls
     Enter to send
   MemoryUniverse
     orbit / zoom / pan
+    node drag / pin
     hover memory tooltip
     clickable relationship graph
+    memory category filters
   SummaryPanel
   Timeline
 

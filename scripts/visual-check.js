@@ -96,14 +96,15 @@ async function checkViewport(browser, name, viewport) {
     throw new Error(`${name}: hover tooltip exposes graph/debug details: ${tooltip}`);
   }
 
-  await page.mouse.down();
-  await page.mouse.up();
+  await page.mouse.click(debug.samplePoint.x, debug.samplePoint.y);
   await page.waitForFunction(() => Boolean(document.querySelector(".universe-hud strong")?.textContent?.trim()), null, { timeout: 1500 }).catch(() => {});
   const selected = await page.locator(".universe-hud strong").textContent().catch(() => "");
   if (!selected) throw new Error(`${name}: node click did not select a memory node`);
 
   if (name === "desktop") {
+    const canvasBox = await page.locator('[data-visual-target="memory-universe-canvas"]').boundingBox();
     const beforeZoom = await page.evaluate(() => window.__personaUniverseDebug.cameraDistance);
+    await page.mouse.move(canvasBox.x + canvasBox.width / 2, canvasBox.y + canvasBox.height / 2);
     await page.mouse.wheel(0, -520);
     await page.waitForTimeout(800);
     const afterZoom = await page.evaluate(() => window.__personaUniverseDebug.cameraDistance);
@@ -123,7 +124,6 @@ async function checkViewport(browser, name, viewport) {
       throw new Error(`${name}: node drag did not pin/move a memory node`);
     }
 
-    const canvasBox = await page.locator('[data-visual-target="memory-universe-canvas"]').boundingBox();
     const candidates = [
       [canvasBox.x + canvasBox.width - 64, canvasBox.y + 64],
       [canvasBox.x + 72, canvasBox.y + 72],
@@ -157,6 +157,16 @@ async function checkViewport(browser, name, viewport) {
   }
 
   if (name === "desktop") {
+    const initialGraphNodes = await page.evaluate(() => window.__personaUniverseDebug.nodeCount);
+    await page.locator(".scope-switch button").filter({ hasText: /^사용자$/ }).click();
+    await page.waitForFunction((initial) => window.__personaUniverseDebug?.nodeCount < initial, initialGraphNodes, { timeout: 2000 });
+    const scopedGraphNodes = await page.evaluate(() => window.__personaUniverseDebug.nodeCount);
+    if (scopedGraphNodes >= initialGraphNodes) {
+      throw new Error(`${name}: graph scope filter did not reduce visible memories`);
+    }
+    await page.locator(".scope-switch button").filter({ hasText: /^전체$/ }).click();
+    await page.waitForFunction((initial) => window.__personaUniverseDebug?.nodeCount === initial, initialGraphNodes, { timeout: 2000 });
+
     const chatMetrics = await page.evaluate(() => {
       const rect = (selector) => {
         const element = document.querySelector(selector);
@@ -239,6 +249,24 @@ async function checkChatInteraction(browser) {
   if (!value.includes("\n둘째 줄")) {
     throw new Error("Shift+Enter did not preserve a newline");
   }
+
+  await page.getByTitle("캐릭터 생성").click();
+  await page.waitForSelector('[data-visual-target="persona-studio"]');
+  const studioMetrics = await page.evaluate(() => {
+    const studio = document.querySelector('[data-visual-target="persona-studio"]');
+    const body = studio?.querySelector(".studio-body");
+    return {
+      width: Math.round(studio?.getBoundingClientRect().width || 0),
+      height: Math.round(studio?.getBoundingClientRect().height || 0),
+      bodyHeight: Math.round(body?.getBoundingClientRect().height || 0),
+      fieldCount: studio?.querySelectorAll("input").length || 0
+    };
+  });
+  if (studioMetrics.width < 720 || studioMetrics.height < 420 || studioMetrics.fieldCount < 10) {
+    throw new Error(`persona studio layout is incomplete: ${JSON.stringify(studioMetrics)}`);
+  }
+  await page.getByTitle("닫기").click();
+  await page.waitForSelector('[data-visual-target="persona-studio"]', { state: "detached" });
   await page.close();
   return submitted;
 }

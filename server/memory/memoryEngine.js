@@ -312,14 +312,16 @@ function linkPersonaProfileNodes({ store, persona, context, nodesByKey }) {
   }
 }
 
-function seedPersonaTemplateMemory({ store, persona, assistant, relationship, context }) {
-  const memories = getPersonaTemplateProfile(persona.templateKey);
+function seedPersonaCharacterMemory({ store, persona, assistant, relationship, context }) {
+  const memories = persona.characterProfile?.length ? persona.characterProfile : getPersonaTemplateProfile(persona.templateKey);
   if (!memories.length) return;
+  const profileScope = persona.templateKey || `custom:${persona.id}`;
+  const canonicalPrefix = persona.templateKey ? `template:${persona.templateKey}` : `character:${profileScope}`;
 
   const nodesByKey = new Map();
   for (const memory of memories) {
     const memoryNode = store.upsertNode({
-      canonicalKey: `template:${persona.templateKey}:${memory.key}`,
+      canonicalKey: `${canonicalPrefix}:${memory.key}`,
       layer: "persona",
       type: memory.type,
       label: memory.label,
@@ -335,7 +337,8 @@ function seedPersonaTemplateMemory({ store, persona, assistant, relationship, co
         rememberedAs: memory.rememberedAs,
         ontologyRole: "persona_profile_fact",
         characterMemory: true,
-        templateKey: persona.templateKey
+        templateKey: persona.templateKey || undefined,
+        profileScope
       }
     }, context);
 
@@ -437,7 +440,7 @@ export class MemoryEngine {
       properties: { explanation: "쌓인 관계는 페르소나가 더 자연스럽게 답하도록 도와줍니다." }
     }, context);
 
-    seedPersonaTemplateMemory({
+    seedPersonaCharacterMemory({
       store: this.store,
       persona,
       assistant,

@@ -6,8 +6,74 @@ import { MemoryUniverse } from "./components/MemoryUniverse.jsx";
 import { SummaryPanel } from "./components/SummaryPanel.jsx";
 import { Timeline } from "./components/Timeline.jsx";
 import { NodeInspector } from "./components/NodeInspector.jsx";
+import { PersonaStudio } from "./components/PersonaStudio.jsx";
 
 const DEFAULT_PROVIDER = "ollama";
+
+const GRAPH_SCOPES = [
+  { id: "all", label: "전체" },
+  { id: "user", label: "사용자" },
+  { id: "persona", label: "캐릭터" },
+  { id: "feeling", label: "감정" },
+  { id: "work", label: "일" },
+  { id: "goal", label: "목표" }
+];
+
+const CORE_TYPES = new Set(["person", "persona", "relationship"]);
+const PERSONA_TYPES = new Set([
+  "persona_age",
+  "persona_occupation",
+  "persona_background",
+  "persona_trait",
+  "persona_signature",
+  "persona_strength",
+  "persona_growth_edge",
+  "persona_preference",
+  "persona_aversion",
+  "persona_speech",
+  "persona_boundary"
+]);
+const FEELING_TYPES = new Set([
+  "personality_trait",
+  "growth_area",
+  "current_concern",
+  "emotional_state",
+  "tension_point",
+  "response_preference"
+]);
+const WORK_TYPES = new Set([
+  "workplace_type",
+  "occupation",
+  "responsibility",
+  "presentation",
+  "key_metric",
+  "metric_reason",
+  "metric_driver",
+  "metric_risk",
+  "data_source",
+  "key_message"
+]);
+const GOAL_TYPES = new Set(["interest", "goal", "product_capability", "memory_behavior"]);
+
+function nodeMatchesScope(node, scope) {
+  if (scope === "all") return true;
+  if (CORE_TYPES.has(node.type)) return true;
+  if (scope === "persona") return PERSONA_TYPES.has(node.type);
+  if (scope === "feeling") return FEELING_TYPES.has(node.type);
+  if (scope === "work") return WORK_TYPES.has(node.type);
+  if (scope === "goal") return GOAL_TYPES.has(node.type);
+  if (scope === "user") return !PERSONA_TYPES.has(node.type) && node.type !== "project";
+  return true;
+}
+
+function filterGraph(graph, scope) {
+  if (!graph) return { nodes: [], edges: [], events: [] };
+  if (scope === "all") return graph;
+  const nodes = graph.nodes.filter((node) => nodeMatchesScope(node, scope));
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const edges = graph.edges.filter((edge) => nodeIds.has(edge.source_id) && nodeIds.has(edge.target_id));
+  return { ...graph, nodes, edges };
+}
 
 export function App() {
   const [state, setState] = useState(null);
@@ -17,6 +83,8 @@ export function App() {
   const [model, setModel] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
+  const [studioOpen, setStudioOpen] = useState(false);
+  const [graphScope, setGraphScope] = useState("all");
 
   useEffect(() => {
     let mounted = true;
@@ -37,8 +105,8 @@ export function App() {
 
   const visibleGraph = useMemo(() => {
     if (!state?.graph) return { nodes: [], edges: [], events: [] };
-    return state.graph;
-  }, [state]);
+    return filterGraph(state.graph, graphScope);
+  }, [state, graphScope]);
 
   const activeModels = useMemo(() => {
     const models = state?.models || [];
@@ -103,6 +171,22 @@ export function App() {
     }
   }
 
+  async function loadSession(sessionId) {
+    if (!sessionId || sessionId === state?.session?.id || isSending) return;
+    setIsSending(true);
+    setError("");
+    try {
+      const payload = await api.loadSession(sessionId);
+      setState((current) => ({ ...payload, models: current?.models || [] }));
+      setSelectedNode(null);
+      setSelectedEdge(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSending(false);
+    }
+  }
+
   async function selectPersona(personaId) {
     if (!personaId || personaId === state?.persona?.id || isSending) return;
     setIsSending(true);
@@ -119,19 +203,13 @@ export function App() {
     }
   }
 
-  async function createPersona() {
-    const name = window.prompt("새 페르소나 이름", "새 페르소나");
-    if (!name?.trim()) return;
-    const description = window.prompt("페르소나 설명", "사용자의 말을 차분히 기억하며 함께 대화하는 페르소나") || "";
+  async function createPersona(input) {
     setIsSending(true);
     setError("");
     try {
-      const payload = await api.createPersona({
-        name: name.trim(),
-        description: description.trim(),
-        systemPrompt: `${name.trim()} 페르소나는 오래 남은 기억을 자연스럽게 참고해 답한다.`
-      });
+      const payload = await api.createPersona(input);
       setState((current) => ({ ...payload, models: current?.models || [] }));
+      setStudioOpen(false);
       setSelectedNode(null);
       setSelectedEdge(null);
     } catch (err) {
@@ -183,6 +261,12 @@ export function App() {
     setModel(nextModel?.name || "");
   }
 
+  function updateGraphScope(nextScope) {
+    setGraphScope(nextScope);
+    setSelectedNode(null);
+    setSelectedEdge(null);
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -190,7 +274,7 @@ export function App() {
           <span className="brand-mark"><BrainCircuit size={22} /></span>
           <div>
             <h1>Persona Universe</h1>
-            <p>Persona Memory Companion</p>
+            <p>기억이 보이는 대화</p>
           </div>
         </div>
         <div className="topbar-metrics" aria-label="memory metrics">
@@ -204,6 +288,7 @@ export function App() {
       <section className="workspace-grid">
         <ChatPanel
           messages={state?.messages || []}
+          session={state?.session}
           sessions={state?.sessions || []}
           persona={state?.persona}
           personas={state?.personas || []}
@@ -214,9 +299,10 @@ export function App() {
           isSending={isSending}
           error={error}
           onPersonaChange={selectPersona}
-          onNewPersona={createPersona}
+          onNewPersona={() => setStudioOpen(true)}
           onResetPersona={resetPersona}
           onDeletePersona={deletePersona}
+          onSessionChange={loadSession}
           onProviderChange={updateProvider}
           onModelChange={setModel}
           onSend={sendMessage}
@@ -227,14 +313,28 @@ export function App() {
           <div className="universe-toolbar">
             <div className="universe-title">
               <strong>{state?.persona?.name || "Persona"}의 기억 우주</strong>
-              <span>페르소나가 대화 속에서 붙잡아 둔 기억만 조용히 보여줘요</span>
+              <span>{visibleGraph.nodes.length}개의 기억 · {visibleGraph.edges.length}개의 연결</span>
             </div>
-            <div className="legend">
-              <span className="legend-dot core" /> 중심
-              <span className="legend-dot relation" /> 관계감
-              <span className="legend-dot profile" /> 프로필
-              <span className="legend-dot work" /> 일
-              <span className="legend-dot goal" /> 목표
+            <div className="universe-controls">
+              <div className="scope-switch" aria-label="기억 보기">
+                {GRAPH_SCOPES.map((scope) => (
+                  <button
+                    key={scope.id}
+                    type="button"
+                    className={graphScope === scope.id ? "is-active" : ""}
+                    onClick={() => updateGraphScope(scope.id)}
+                  >
+                    {scope.label}
+                  </button>
+                ))}
+              </div>
+              <div className="legend">
+                <span className="legend-dot core" /> 중심
+                <span className="legend-dot relation" /> 관계감
+                <span className="legend-dot profile" /> 프로필
+                <span className="legend-dot work" /> 일
+                <span className="legend-dot goal" /> 목표
+              </div>
             </div>
           </div>
           <MemoryUniverse
@@ -257,6 +357,13 @@ export function App() {
           <NodeInspector node={selectedNode} edge={selectedEdge} graph={state?.graph} />
         </aside>
       </section>
+
+      <PersonaStudio
+        open={studioOpen}
+        isSaving={isSending}
+        onClose={() => !isSending && setStudioOpen(false)}
+        onCreate={createPersona}
+      />
     </main>
   );
 }

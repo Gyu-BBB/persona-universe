@@ -59,7 +59,15 @@ The persona should use memory quietly:
 
 Users should be able to fix the AI's understanding.
 
-Planned controls:
+Current V1 controls:
+
+- reset the active persona's memory graph
+- delete custom characters and their memory
+- keep default templates locked from deletion
+- preserve current/replaced memory state when the user corrects a fact
+- inspect why connected memories are associated through the side panel
+
+Next controls:
 
 - edit memory
 - forget memory
@@ -72,23 +80,42 @@ Planned controls:
 
 Since login is not needed, the product should focus on local ownership.
 
-Planned local controls:
+Current V1 controls:
+
+- switch between Ollama and OpenAI
+- create local personas without a login flow
+- keep persona memory in local SQLite
+- switch conversation sessions per character
+- use a 3D memory universe with category filters
+
+Next local controls:
 
 - export/import persona memory
 - backup/restore SQLite memory
-- switch between Ollama and OpenAI
 - configure model per persona
 - create character packs
+
+## V1 Completion Shape
+
+The current product pass should be treated as the first complete local prototype:
+
+- The left side is the conversation and character surface: compact persona roster, locked base cast, custom character studio, session switcher, provider/model controls, reset, and delete.
+- The center is the visible memory universe: ontology memories only, with orbit/zoom/pan, draggable nodes, hover summaries, click inspection, and category filtering.
+- The right side is the quiet explanation layer: recent turn, current session flow, long-term persona memory, response influence, and selected memory relationships.
+- The backend stores character-specific memory as SQLite nodes/edges, ontology assertions, and RDF triples. It keeps current/replaced memory status for corrections and exposes a SPARQL SELECT subset for validation.
+- Conversation context is hybrid: recent history for local flow, compressed session memory for longer continuity, ontology memory for durable facts, and transcript retrieval for exact "what did I say earlier?" questions.
 
 ## Near-Term Roadmap
 
 ### Phase 1: Character Management
 
-- Locked default templates
-- Detailed default character memory seeding
-- Custom character creation
+- Locked default templates: done
+- Detailed default character memory seeding: done
+- Custom character creation: done
+- Custom character profile memory seeding: done
+- Character memory reset: done
+- Custom character deletion: done
 - Character duplicate/fork
-- Character memory reset
 - Character memory export
 
 ### Phase 2: Memory Quality
@@ -101,7 +128,7 @@ Planned local controls:
 
 ### Phase 3: Graph Usability
 
-- Filter by category
+- Filter by category: done
 - Collapse clusters
 - Focus on current conversation
 - Show only active memories
