@@ -34,12 +34,11 @@ export function ChatPanel({
   const templatePersonas = useMemo(() => (personas || []).filter((item) => item.templateKey), [personas]);
   const customPersonas = useMemo(() => (personas || []).filter((item) => !item.templateKey), [personas]);
   const isTemplatePersona = Boolean(persona?.templateKey);
-  const characterTags = useMemo(() => {
-    const wanted = new Set(["age", "occupation", "trait", "speech", "boundary"]);
-    return (persona?.characterProfile || [])
-      .filter((item) => wanted.has(item.key))
-      .map((item) => item.value || item.label)
-      .slice(0, 5);
+  const personaMeta = useMemo(() => {
+    const profile = persona?.characterProfile || [];
+    const age = profile.find((item) => item.key === "age")?.value;
+    const occupation = profile.find((item) => item.key === "occupation")?.value;
+    return [age, occupation].filter(Boolean).join(" · ");
   }, [persona]);
 
   function PersonaButton({ item }) {
@@ -96,19 +95,17 @@ export function ChatPanel({
   }
 
   return (
-	    <section className="chat-panel">
-	      {persona ? (
-	        <section className="persona-card" style={{ "--active-persona": persona.color || "#facc15" }}>
-	          <div className="persona-avatar">{personaInitial}</div>
-	          <div>
-	            <strong>{persona.name}</strong>
-	            <p>{persona.description || "대화 속 기억을 바탕으로 반응하는 페르소나"}</p>
-	            {characterTags.length ? (
-	              <div className="character-tags">
-	                {characterTags.map((tag) => <span key={tag}>{tag}</span>)}
-	              </div>
-	            ) : null}
-	          </div>
+    <section className="chat-panel">
+      {persona ? (
+        <section className="persona-card" style={{ "--active-persona": persona.color || "#facc15" }}>
+          <div className="persona-avatar">{personaInitial}</div>
+          <div className="persona-card-copy" title={persona.description || persona.name}>
+            <div className="persona-card-title">
+              <strong>{persona.name}</strong>
+              <small>{isTemplatePersona ? "기본 캐릭터" : "내 캐릭터"}</small>
+            </div>
+            <p>{personaMeta || persona.description || "대화 속 기억을 바탕으로 반응하는 페르소나"}</p>
+          </div>
           <div className="persona-actions">
             <button className="icon-button" type="button" onClick={onNewPersona} title="캐릭터 생성" disabled={isSending}>
               <Plus size={17} />

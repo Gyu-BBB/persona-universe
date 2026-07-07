@@ -132,8 +132,8 @@ button {
 .chat-panel {
   display: grid;
   grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
-  gap: 12px;
-  padding: 14px;
+  gap: 8px;
+  padding: 10px;
   border-right: 1px solid var(--line);
   background: var(--panel);
 }
@@ -141,10 +141,11 @@ button {
 .persona-card {
   min-width: 0;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
-  padding: 10px;
+  min-height: 50px;
+  padding: 7px;
   border: 1px solid color-mix(in srgb, var(--active-persona) 34%, transparent);
   border-radius: 8px;
   background:
@@ -152,100 +153,107 @@ button {
 }
 
 .persona-card .persona-avatar {
-  width: 44px;
-  height: 44px;
+  width: 34px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
   color: #07080d;
   background: var(--active-persona);
+  font-size: 13px;
   font-weight: 800;
 }
 
-.persona-card strong {
+.persona-card-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.persona-card-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.persona-card-title strong,
+.persona-card-title small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.persona-card-title strong {
   display: block;
   font-size: 13px;
-  margin-bottom: 4px;
+}
+
+.persona-card-title small {
+  color: color-mix(in srgb, var(--active-persona) 70%, var(--muted));
+  font-size: 10px;
+  flex: 0 0 auto;
 }
 
 .persona-card p {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.42;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.character-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 8px;
-}
-
-.character-tags span {
-  max-width: 100%;
-  min-height: 22px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 7px;
-  border: 1px solid color-mix(in srgb, var(--active-persona) 28%, transparent);
-  border-radius: 7px;
-  color: color-mix(in srgb, var(--active-persona) 72%, var(--text));
-  background: rgba(255, 255, 255, 0.045);
-  font-size: 10px;
-  line-height: 1;
+  font-size: 11px;
+  line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .persona-actions {
   display: grid;
-  grid-template-columns: repeat(3, 34px);
-  gap: 6px;
+  grid-template-columns: repeat(3, 30px);
+  gap: 5px;
 }
 
 .persona-actions .icon-button {
-  width: 34px;
+  width: 30px;
+  height: 30px;
 }
 
 .persona-roster {
   min-height: 0;
-  max-height: 188px;
-  overflow: auto;
-  display: grid;
-  gap: 8px;
-  padding-right: 2px;
+  max-height: 44px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  gap: 6px;
+  padding: 0 2px 3px 0;
+  scrollbar-width: thin;
 }
 
 .persona-roster-group {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
 }
 
 .persona-roster-group.custom {
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
+  padding-left: 6px;
+  border-left: 1px solid var(--line);
 }
 
 .persona-tile {
   min-width: 0;
-  height: 52px;
+  width: 112px;
+  height: 36px;
+  flex: 0 0 112px;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 14px;
-  gap: 7px;
+  grid-template-columns: 24px minmax(0, 1fr) 10px;
+  gap: 5px;
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.045);
   color: var(--text);
   cursor: pointer;
-  padding: 7px;
+  padding: 5px 6px;
   text-align: left;
 }
 
@@ -255,15 +263,15 @@ button {
 }
 
 .persona-tile-avatar {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 7px;
   color: #07080d;
   background: var(--active-persona);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
 }
 
@@ -281,7 +289,7 @@ button {
 }
 
 .persona-tile-copy strong {
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .persona-tile-copy small,
@@ -290,7 +298,7 @@ button {
 }
 
 .persona-tile-copy small {
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .model-strip {

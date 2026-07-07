@@ -156,6 +156,32 @@ async function checkViewport(browser, name, viewport) {
     throw new Error(`${name}: horizontal overflow ${JSON.stringify(layout)}`);
   }
 
+  if (name === "desktop") {
+    const chatMetrics = await page.evaluate(() => {
+      const rect = (selector) => {
+        const element = document.querySelector(selector);
+        if (!element) return { height: 0 };
+        const box = element.getBoundingClientRect();
+        return { height: box.height };
+      };
+      const card = rect(".persona-card");
+      const roster = rect(".persona-roster");
+      const messages = rect(".message-list");
+      return {
+        personaCardHeight: card.height,
+        personaRosterHeight: roster.height,
+        selectionHeight: card.height + roster.height,
+        messageListHeight: messages.height
+      };
+    });
+    if (chatMetrics.selectionHeight > 104 || chatMetrics.personaRosterHeight > 48) {
+      throw new Error(`${name}: persona selector is taking too much chat space ${JSON.stringify(chatMetrics)}`);
+    }
+    if (chatMetrics.messageListHeight < 430) {
+      throw new Error(`${name}: message list is too cramped ${JSON.stringify(chatMetrics)}`);
+    }
+  }
+
   await page.close();
   return { name, stats, diff, selected };
 }
