@@ -35,6 +35,7 @@ const PROFILE_FACT_RELATIONS = new Set([
   "has_routine",
   "concerned_about",
   "feels_tension_about",
+  "feels_strained_by",
   "interested_in",
   "has_goal",
   "wants_to_build"
@@ -55,6 +56,8 @@ const SEMANTIC_ONTOLOGY_RELATIONS = new Set([
   "contributes_to_goal",
   "aligned_with_goal",
   "has_tension_point",
+  "emotional_state_related_to_concern",
+  "work_context_for_strain",
   "concern_about_presentation",
   "role_prepares_presentation",
   "presentation_uses_metric",
@@ -311,6 +314,14 @@ export class MemoryEngine {
     this.seedCore(persona.id);
     const session = this.store.getOrCreateDefaultSession(persona.id);
     return this.getState({ personaId: persona.id, sessionId: session.id });
+  }
+
+  deletePersona(personaId) {
+    const nextPersona = this.store.deletePersona(personaId);
+    if (!nextPersona) throw new Error("삭제 후 선택할 페르소나가 없어요.");
+    this.seedCore(nextPersona.id);
+    const session = this.store.getOrCreateDefaultSession(nextPersona.id);
+    return this.getState({ personaId: nextPersona.id, sessionId: session.id });
   }
 
   createSession({ title, personaId }) {
@@ -753,6 +764,20 @@ export class MemoryEngine {
       0.74
     );
     linkGroups(
+      byType(["emotional_state"]),
+      byType(["current_concern", "tension_point"]),
+      "emotional_state_related_to_concern",
+      (source, target) => `${source.label} 기억은 ${target.label}와 함께 사용자의 현재 상태를 설명합니다.`,
+      0.64
+    );
+    linkGroups(
+      byType(["occupation", "workplace_type"]),
+      byType(["emotional_state"]),
+      "work_context_for_strain",
+      (source, target) => `${target.label} 기억은 ${source.label} 맥락에서 살펴볼 수 있습니다.`,
+      0.58
+    );
+    linkGroups(
       byType(["current_concern"]),
       byType(["presentation"]),
       "concern_about_presentation",
@@ -869,6 +894,7 @@ export class MemoryEngine {
         "preference",
         "response_preference",
         "current_concern",
+        "emotional_state",
         "tension_point",
         "presentation",
         "key_metric",
@@ -1114,7 +1140,7 @@ export class MemoryEngine {
       sessions: this.store.listSessions(persona.id),
       messages: this.store.listMessages(session.id),
       graph,
-      summaries: this.buildSummaries(persona, session.id, graph)
+      summaries: this.buildSummaries(persona, session.id, rawGraph, graph)
     };
   }
 
@@ -1182,23 +1208,41 @@ export class MemoryEngine {
     };
   }
 
-  buildSummaries(persona, sessionId, graph) {
-    const topByLayer = (layer, count) => graph.nodes
+  buildSummaries(persona, sessionId, rawGraph, displayGraph) {
+    const uniqueItems = (items) => [...new Set(items.map((item) => compactLine(item, 92)).filter(Boolean))];
+    const topByLayer = (sourceGraph, layer, count) => sourceGraph.nodes
       .filter((node) => node.layer === layer)
       .sort((a, b) => (b.activation + b.importance) - (a.activation + a.importance))
       .slice(0, count);
 
-    const turn = topByLayer("turn", 4);
-    const session = topByLayer("session", 6);
-    const personaNodes = topByLayer("persona", 8);
-    const recentEvents = graph.events.slice(0, 8);
+    const session = this.store.getSession(sessionId);
+    const workingItems = String(session?.working_memory || "")
+      .split("\n")
+      .map((line) => line.replace(/^-\s*/, "").trim())
+      .filter((line) => line && !line.endsWith(":"))
+      .slice(-8)
+      .reverse();
+    const turn = topByLayer(rawGraph, "turn", 5).filter((node) => node.type === "turn");
+    const sessionNodes = topByLayer(rawGraph, "session", 6)
+      .filter((node) => !["현재 세션", "새 페르소나 세션"].includes(node.label));
+    const personaNodes = topByLayer(displayGraph, "persona", 8)
+      .filter((node) => node.properties?.memoryStatus !== "replaced");
+    const recentEvents = rawGraph.events.slice(0, 8);
+    const turnItems = uniqueItems([
+      ...turn.map((node) => node.label),
+      ...recentEvents.filter((event) => event.layer === "persona" && /기억 생성|기억 강화/.test(event.summary)).map((event) => event.summary)
+    ]);
+    const sessionItems = uniqueItems([
+      ...workingItems,
+      ...sessionNodes.map((node) => node.label)
+    ]);
 
     return {
-      turn: turn.length ? turn.map((node) => node.label) : ["아직 방금 붙잡은 기억은 없어요."],
-      session: session.length ? session.map((node) => node.label) : ["이 대화는 이제 막 시작됐어요."],
+      turn: turnItems.length ? turnItems : ["아직 방금 붙잡은 기억은 없어요."],
+      session: sessionItems.length ? sessionItems : ["이 대화는 이제 막 시작됐어요."],
       persona: personaNodes.length ? personaNodes.map((node) => node.label) : [`${persona.name}가 아직 오래 간직한 기억은 적어요.`],
       events: recentEvents.map((event) => event.summary),
-      influence: this.buildInfluencePath(graph)
+      influence: this.buildInfluencePath(displayGraph)
     };
   }
 

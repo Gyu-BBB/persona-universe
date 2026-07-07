@@ -160,6 +160,8 @@ export function applySchema(db) {
   addColumnIfMissing(db, "sessions", "compressed_summary", "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing(db, "sessions", "working_memory", "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing(db, "sessions", "summary_updated_at", "TEXT");
+  addColumnIfMissing(db, "personas", "template_key", "TEXT");
+  addColumnIfMissing(db, "personas", "avatar", "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing(db, "messages", "persona_id", "TEXT");
   addColumnIfMissing(db, "nodes", "persona_id", "TEXT");
   addColumnIfMissing(db, "edges", "persona_id", "TEXT");

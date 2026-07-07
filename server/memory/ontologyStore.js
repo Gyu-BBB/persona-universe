@@ -38,15 +38,54 @@ function stringify(value) {
 }
 
 const DEFAULT_PERSONA = {
-  name: "Codex Partner",
-  description: "사용자의 말을 차분히 기억하며 함께 생각을 정리하는 페르소나",
-  systemPrompt: "사용자의 맥락을 조심스럽게 참고하고, 자연스럽고 가까운 말투로 답한다.",
-  color: "#facc15"
+  templateKey: "serin",
+  avatar: "서",
+  name: "서린",
+  description: "밤 산책처럼 차분하게 곁을 지키며 사용자의 마음과 맥락을 오래 기억하는 대화 상대",
+  systemPrompt: "서린은 조용하고 다정한 동행자다. 사용자의 감정과 관계 맥락을 먼저 살피고, 과장 없이 짧고 따뜻하게 답한다.",
+  color: "#5eead4"
 };
+
+const PERSONA_TEMPLATES = [
+  DEFAULT_PERSONA,
+  {
+    templateKey: "haon",
+    avatar: "하",
+    name: "하온",
+    description: "가까운 친구처럼 편하게 받아주고 일상의 기분 변화를 섬세하게 기억하는 캐릭터",
+    systemPrompt: "하온은 밝고 친근한 친구 같은 페르소나다. 사용자의 말을 쉽게 받아주고, 부담을 낮추는 말투로 자연스럽게 대화한다.",
+    color: "#facc15"
+  },
+  {
+    templateKey: "ian",
+    avatar: "이",
+    name: "이안",
+    description: "문제를 구조화하고 선택지를 날카롭게 정리하는 전략형 조언자",
+    systemPrompt: "이안은 침착한 전략가다. 사용자의 목표, 제약, 이전 결정을 기억하고 현실적인 다음 행동으로 정리해 답한다.",
+    color: "#60a5fa"
+  },
+  {
+    templateKey: "miro",
+    avatar: "미",
+    name: "미로",
+    description: "아이디어를 넓게 펼치고 상상력을 자극하는 창작 파트너",
+    systemPrompt: "미로는 호기심 많은 창작 파트너다. 사용자의 취향과 프로젝트 맥락을 기억해 새로운 관점과 구체적인 아이디어를 제안한다.",
+    color: "#c084fc"
+  },
+  {
+    templateKey: "noa",
+    avatar: "노",
+    name: "노아",
+    description: "흔들릴 때 기준을 잡아주고 실행 루틴을 만드는 단단한 코치",
+    systemPrompt: "노아는 담백하고 단단한 코치다. 사용자의 상태를 인정하되 늘 작게 실행할 수 있는 다음 단계로 연결한다.",
+    color: "#fb7185"
+  }
+];
 
 export class OntologyStore {
   constructor(db) {
     this.db = db;
+    this.ensureTemplatePersonas();
     this.defaultPersona = this.ensureDefaultPersona();
     this.migrateExistingRows(this.defaultPersona.id);
     this.ensureOntologySchema();
@@ -58,12 +97,15 @@ export class OntologyStore {
   prepareStatements() {
     return {
       listPersonas: this.db.prepare("SELECT * FROM personas WHERE active = 1 ORDER BY updated_at DESC, created_at DESC"),
-      getPersona: this.db.prepare("SELECT * FROM personas WHERE id = ?"),
+      getPersona: this.db.prepare("SELECT * FROM personas WHERE id = ? AND active = 1"),
+      getAnyPersona: this.db.prepare("SELECT * FROM personas WHERE id = ?"),
+      countActivePersonas: this.db.prepare("SELECT COUNT(*) AS count FROM personas WHERE active = 1"),
       insertPersona: this.db.prepare(`
-        INSERT INTO personas (id, name, description, system_prompt, color, active, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+        INSERT INTO personas (id, name, description, system_prompt, color, template_key, avatar, active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
       `),
       touchPersona: this.db.prepare("UPDATE personas SET updated_at = ? WHERE id = ?"),
+      deactivatePersona: this.db.prepare("UPDATE personas SET active = 0, updated_at = ? WHERE id = ?"),
 
       getSession: this.db.prepare("SELECT * FROM sessions WHERE id = ?"),
       listSessions: this.db.prepare("SELECT * FROM sessions WHERE persona_id = ? ORDER BY updated_at DESC LIMIT 30"),
@@ -602,25 +644,36 @@ export class OntologyStore {
     return { inferredCount };
   }
 
+  ensureTemplatePersonas() {
+    const timestamp = nowIso();
+    const findTemplate = this.db.prepare("SELECT * FROM personas WHERE template_key = ? LIMIT 1");
+    const insertTemplate = this.db.prepare(`
+      INSERT INTO personas (id, name, description, system_prompt, color, template_key, avatar, active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+    `);
+    for (const template of PERSONA_TEMPLATES) {
+      if (findTemplate.get(template.templateKey)) continue;
+      insertTemplate.run(
+        crypto.randomUUID(),
+        template.name,
+        template.description,
+        template.systemPrompt,
+        template.color,
+        template.templateKey,
+        template.avatar,
+        timestamp,
+        timestamp
+      );
+    }
+  }
+
   ensureDefaultPersona() {
+    const existingTemplate = this.db.prepare("SELECT * FROM personas WHERE template_key = ? AND active = 1 LIMIT 1").get(DEFAULT_PERSONA.templateKey);
+    if (existingTemplate) return existingTemplate;
     const existing = this.db.prepare("SELECT * FROM personas WHERE active = 1 ORDER BY created_at ASC LIMIT 1").get();
     if (existing) return existing;
-
-    const id = crypto.randomUUID();
-    const timestamp = nowIso();
-    this.db.prepare(`
-      INSERT INTO personas (id, name, description, system_prompt, color, active, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 1, ?, ?)
-    `).run(
-      id,
-      DEFAULT_PERSONA.name,
-      DEFAULT_PERSONA.description,
-      DEFAULT_PERSONA.systemPrompt,
-      DEFAULT_PERSONA.color,
-      timestamp,
-      timestamp
-    );
-    return this.db.prepare("SELECT * FROM personas WHERE id = ?").get(id);
+    this.ensureTemplatePersonas();
+    return this.db.prepare("SELECT * FROM personas WHERE active = 1 ORDER BY created_at ASC LIMIT 1").get();
   }
 
   migrateExistingRows(personaId) {
@@ -811,7 +864,9 @@ export class OntologyStore {
     if (!row) return null;
     return {
       ...row,
+      templateKey: row.template_key,
       systemPrompt: row.system_prompt,
+      avatar: row.avatar || row.name?.trim()?.[0] || "P",
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };
@@ -827,14 +882,62 @@ export class OntologyStore {
   }
 
   getDefaultPersona() {
-    return this.normalizePersona(this.statements.getPersona.get(this.defaultPersona.id));
+    const current = this.statements.getPersona.get(this.defaultPersona.id);
+    if (current) return this.normalizePersona(current);
+    const fallback = this.statements.listPersonas.all()[0];
+    if (fallback) {
+      this.defaultPersona = fallback;
+      return this.normalizePersona(fallback);
+    }
+    this.ensureTemplatePersonas();
+    this.defaultPersona = this.db.prepare("SELECT * FROM personas WHERE active = 1 ORDER BY created_at ASC LIMIT 1").get();
+    return this.normalizePersona(this.defaultPersona);
   }
 
-  createPersona({ name, description = "", systemPrompt = "", color = "#facc15" }) {
+  createPersona({ name, description = "", systemPrompt = "", color = "#facc15", templateKey = null, avatar = "" }) {
     const id = crypto.randomUUID();
     const timestamp = nowIso();
-    this.statements.insertPersona.run(id, name || "새 페르소나", description, systemPrompt, color, timestamp, timestamp);
+    const resolvedName = name || "새 페르소나";
+    this.statements.insertPersona.run(
+      id,
+      resolvedName,
+      description,
+      systemPrompt,
+      color,
+      templateKey,
+      avatar || resolvedName.trim()[0] || "P",
+      timestamp,
+      timestamp
+    );
     return this.getPersona(id);
+  }
+
+  deletePersona(personaId) {
+    const persona = this.statements.getPersona.get(personaId);
+    if (!persona) throw new Error("persona not found");
+    const activeCount = this.statements.countActivePersonas.get().count;
+    if (activeCount <= 1) throw new Error("마지막 페르소나는 삭제할 수 없어요.");
+
+    this.db.exec("BEGIN");
+    try {
+      this.statements.resetEdges.run(personaId);
+      this.statements.resetNodes.run(personaId);
+      this.statements.resetEvents.run(personaId);
+      this.statements.resetMessages.run(personaId);
+      this.statements.resetSessions.run(personaId);
+      this.statements.resetOntologyNodeTypes.run(personaId);
+      this.statements.resetOntologyAssertions.run(personaId);
+      this.statements.resetRdfTriples.run(personaId);
+      this.statements.deactivatePersona.run(nowIso(), personaId);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+
+    const nextPersona = this.statements.listPersonas.all()[0];
+    if (this.defaultPersona.id === personaId && nextPersona) this.defaultPersona = nextPersona;
+    return this.normalizePersona(nextPersona);
   }
 
   resetPersonaMemory(personaId) {
@@ -845,6 +948,9 @@ export class OntologyStore {
       this.statements.resetEvents.run(personaId);
       this.statements.resetMessages.run(personaId);
       this.statements.resetSessions.run(personaId);
+      this.statements.resetOntologyNodeTypes.run(personaId);
+      this.statements.resetOntologyAssertions.run(personaId);
+      this.statements.resetRdfTriples.run(personaId);
       this.statements.touchPersona.run(nowIso(), personaId);
       this.db.exec("COMMIT");
     } catch (error) {

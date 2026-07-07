@@ -59,6 +59,14 @@ app.post("/api/personas/:personaId/reset", (req, res, next) => {
   }
 });
 
+app.delete("/api/personas/:personaId", (req, res, next) => {
+  try {
+    res.json(memory.deletePersona(req.params.personaId));
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post("/api/sessions", (req, res, next) => {
   try {
     res.status(201).json(memory.createSession({

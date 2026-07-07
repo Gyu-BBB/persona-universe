@@ -159,6 +159,24 @@ export function App() {
     }
   }
 
+  async function deletePersona() {
+    if (!state?.persona || isSending) return;
+    const confirmed = window.confirm(`${state.persona.name} 페르소나와 이 페르소나의 기억을 삭제할까요?`);
+    if (!confirmed) return;
+    setIsSending(true);
+    setError("");
+    try {
+      const payload = await api.deletePersona(state.persona.id);
+      setState((current) => ({ ...payload, models: current?.models || [] }));
+      setSelectedNode(null);
+      setSelectedEdge(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSending(false);
+    }
+  }
+
   function updateProvider(nextProvider) {
     setProvider(nextProvider);
     const nextModel = state?.models?.find((item) => item.provider === nextProvider && !item.unavailable);
@@ -198,6 +216,7 @@ export function App() {
           onPersonaChange={selectPersona}
           onNewPersona={createPersona}
           onResetPersona={resetPersona}
+          onDeletePersona={deletePersona}
           onProviderChange={updateProvider}
           onModelChange={setModel}
           onSend={sendMessage}

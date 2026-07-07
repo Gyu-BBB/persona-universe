@@ -26,6 +26,9 @@ export const api = {
     method: "POST",
     body: JSON.stringify({})
   }),
+  deletePersona: (personaId) => request(`/personas/${personaId}`, {
+    method: "DELETE"
+  }),
   createSession: ({ title, personaId }) => request("/sessions", {
     method: "POST",
     body: JSON.stringify({ title, personaId })

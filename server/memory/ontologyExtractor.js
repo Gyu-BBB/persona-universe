@@ -110,6 +110,29 @@ function extractConcernValue(text) {
   return "";
 }
 
+function extractStrainValue(text) {
+  const strainWords = /힘들어|힘들다|힘듭니다|버거워|버겁다|지쳐|지칩니다|스트레스(?:야|예요|입니다|받아)?|괴로워/;
+  const sentence = sentences(text).find((item) => strainWords.test(item));
+  if (!sentence) return "";
+  const scoped = cleanValue(sentence)
+    .replace(/^(?:나는|난|저는|전|나|저|요즘|최근|지금|사실)\s+/g, "")
+    .replace(/^(?:내|제)\s+/g, "");
+  const patterns = [
+    /^(.{2,50}?)(?:때문에|관련해서|가지고)\s*(?:너무\s*)?(?:힘들어|힘들다|힘듭니다|버거워|버겁다|지쳐|지칩니다|스트레스|괴로워)/,
+    /^(.{2,50}?)(?:이|가|은|는)\s*(?:너무\s*)?(?:힘들어|힘들다|힘듭니다|버거워|버겁다|지쳐|지칩니다|스트레스|괴로워)/,
+    /^(.{2,50}?)\s*(?:너무\s*)?(?:힘들어|힘들다|힘듭니다|버거워|버겁다|지쳐|지칩니다|스트레스|괴로워)/
+  ];
+  for (const pattern of patterns) {
+    const match = scoped.match(pattern);
+    if (match?.[1]) {
+      return cleanValue(match[1])
+        .replace(/\s*(?:이|가|은|는)$/g, "")
+        .replace(/^(?:요즘|최근|지금)\s+/g, "");
+    }
+  }
+  return "";
+}
+
 function stripTrailingCopula(value) {
   return cleanValue(value)
     .replace(/\s*(?:이야|야|입니다|이에요|예요|라고\s*생각해|라고\s*생각합니다)$/g, "")
@@ -594,6 +617,19 @@ export function extractOntologyFacts(content) {
       relation: "concerned_about",
       summary: `사용자는 ${naturalConcernValue}을 걱정하고 있음`,
       rememberedAs: `요즘 마음에 걸리는 일: ${naturalConcernValue}`,
+      category: "state"
+    });
+  }
+
+  const strainValue = extractStrainValue(text);
+  if (strainValue) {
+    addFact(facts, {
+      type: "emotional_state",
+      labelPrefix: "힘든 일",
+      value: strainValue,
+      relation: "feels_strained_by",
+      summary: `사용자는 ${strainValue}이 힘들다고 느낌`,
+      rememberedAs: `요즘 사용자에게 힘든 일: ${strainValue}`,
       category: "state"
     });
   }

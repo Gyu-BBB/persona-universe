@@ -131,7 +131,7 @@ button {
 
 .chat-panel {
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
   gap: 12px;
   padding: 14px;
   border-right: 1px solid var(--line);
@@ -140,7 +140,7 @@ button {
 
 .persona-strip {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px 36px;
+  grid-template-columns: minmax(0, 1fr) 36px 36px 36px;
   gap: 8px;
   align-items: end;
 }
@@ -161,6 +161,44 @@ button {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0 10px;
+}
+
+.persona-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--active-persona) 34%, transparent);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--active-persona) 16%, transparent), rgba(255, 255, 255, 0.035));
+}
+
+.persona-card .persona-avatar {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #07080d;
+  background: var(--active-persona);
+  font-weight: 800;
+}
+
+.persona-card strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.persona-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.42;
 }
 
 .model-strip {
@@ -278,6 +316,8 @@ textarea:disabled {
   justify-content: center;
   border-radius: 8px;
   color: #080b0f;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .message.user .message-avatar {

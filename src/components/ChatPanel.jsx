@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Cpu, Plus, RotateCcw, Send, UserRound, WifiOff } from "lucide-react";
+import { Bot, Cpu, Plus, RotateCcw, Send, Trash2, UserRound, WifiOff } from "lucide-react";
 
 export function ChatPanel({
   messages,
@@ -14,6 +14,7 @@ export function ChatPanel({
   onPersonaChange,
   onNewPersona,
   onResetPersona,
+  onDeletePersona,
   onProviderChange,
   onModelChange,
   onSend,
@@ -29,6 +30,7 @@ export function ChatPanel({
     }
     return providers;
   }, [allModels]);
+  const personaInitial = persona?.avatar || persona?.name?.trim()?.[0] || "P";
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
@@ -64,7 +66,7 @@ export function ChatPanel({
     <section className="chat-panel">
       <div className="persona-strip">
         <label className="persona-select">
-          <span>Persona</span>
+          <span>대화할 캐릭터</span>
           <select value={persona?.id || ""} onChange={(event) => onPersonaChange(event.target.value)} disabled={isSending}>
             {(personas || []).map((item) => (
               <option key={item.id} value={item.id}>{item.name}</option>
@@ -77,7 +79,20 @@ export function ChatPanel({
         <button className="icon-button danger" type="button" onClick={onResetPersona} title="선택 페르소나 초기화" disabled={isSending || !persona}>
           <RotateCcw size={16} />
         </button>
+        <button className="icon-button danger" type="button" onClick={onDeletePersona} title="선택 페르소나 삭제" disabled={isSending || !persona || personas.length <= 1}>
+          <Trash2 size={16} />
+        </button>
       </div>
+
+      {persona ? (
+        <section className="persona-card" style={{ "--active-persona": persona.color || "#facc15" }}>
+          <div className="persona-avatar">{personaInitial}</div>
+          <div>
+            <strong>{persona.name}</strong>
+            <p>{persona.description || "대화 속 기억을 바탕으로 반응하는 페르소나"}</p>
+          </div>
+        </section>
+      ) : null}
 
       <div className="model-strip">
         <div className="provider-toggle" aria-label="provider">
@@ -124,18 +139,18 @@ export function ChatPanel({
         ) : null}
         {messages.map((message) => (
           <article key={message.id} className={`message ${message.role}`}>
-            <div className="message-avatar">
-              {message.role === "user" ? <UserRound size={16} /> : <Bot size={16} />}
-            </div>
-            <div className="message-body">
-              <span>{message.role === "user" ? "User" : "Persona"}</span>
-              <p>{message.content}</p>
-            </div>
-          </article>
-        ))}
+              <div className="message-avatar">
+                {message.role === "user" ? <UserRound size={16} /> : personaInitial}
+              </div>
+              <div className="message-body">
+                <span>{message.role === "user" ? "User" : persona?.name || "Persona"}</span>
+                <p>{message.content}</p>
+              </div>
+            </article>
+          ))}
         {isSending ? (
           <article className="message assistant pending">
-            <div className="message-avatar"><Bot size={16} /></div>
+            <div className="message-avatar">{personaInitial || <Bot size={16} />}</div>
             <div className="message-body">
               <span>{persona?.name || "Persona"}</span>
               <div className="loading-block">
