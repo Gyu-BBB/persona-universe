@@ -1,5 +1,6 @@
 import { detectSignals, inferTurnIntent, relationSummary, summarizeContent } from "./textSignals.js";
 import { extractOntologyFacts } from "./ontologyExtractor.js";
+import { getPersonaTemplateProfile } from "./ontologyStore.js";
 
 const PROFILE_FACT_RELATIONS = new Set([
   "has_name",
@@ -38,7 +39,18 @@ const PROFILE_FACT_RELATIONS = new Set([
   "feels_strained_by",
   "interested_in",
   "has_goal",
-  "wants_to_build"
+  "wants_to_build",
+  "has_persona_age",
+  "has_persona_occupation",
+  "has_persona_background",
+  "has_persona_trait",
+  "has_persona_signature",
+  "has_persona_strength",
+  "has_persona_growth_edge",
+  "likes_persona",
+  "avoids_persona",
+  "has_persona_speech",
+  "has_persona_boundary"
 ]);
 
 const SEMANTIC_ONTOLOGY_RELATIONS = new Set([
@@ -70,6 +82,14 @@ const SEMANTIC_ONTOLOGY_RELATIONS = new Set([
   "comforted_by_response_style",
   "routine_reflects_interest",
   "alternative_contact",
+  "supports_persona_role",
+  "shapes_persona_signature",
+  "shapes_persona_speech",
+  "supports_persona_signature",
+  "softens_relationship",
+  "guards_relationship",
+  "tempers_persona_response",
+  "guides_persona_speech",
   "superseded_by",
   "updates_memory"
 ]);
@@ -122,6 +142,20 @@ const MEMORY_MODE_LABELS = {
   personalized_advice: "개인화 조언",
   casual: "일반 대화"
 };
+
+const PERSONA_PROFILE_TYPES = new Set([
+  "persona_age",
+  "persona_occupation",
+  "persona_background",
+  "persona_trait",
+  "persona_signature",
+  "persona_strength",
+  "persona_growth_edge",
+  "persona_preference",
+  "persona_aversion",
+  "persona_speech",
+  "persona_boundary"
+]);
 
 function hasKoreanBatchim(text) {
   const last = String(text || "").trim().at(-1);
@@ -245,6 +279,117 @@ function coreNodesFor(persona) {
   ];
 }
 
+function linkPersonaProfileNodes({ store, persona, context, nodesByKey }) {
+  const links = [
+    ["background", "occupation", "supports_persona_role", "캐릭터의 배경이 현재 역할을 뒷받침합니다.", 0.64],
+    ["occupation", "signature", "shapes_persona_signature", "캐릭터의 직업성이 대표 특징을 만듭니다.", 0.62],
+    ["trait", "speech", "shapes_persona_speech", "캐릭터의 성격이 말투에 스며듭니다.", 0.66],
+    ["strength", "signature", "supports_persona_signature", "캐릭터의 강점이 대표 특징을 더 또렷하게 만듭니다.", 0.64],
+    ["likes", "boundary", "softens_relationship", "캐릭터가 좋아하는 장면이 관계의 온도를 부드럽게 만듭니다.", 0.58],
+    ["avoids", "boundary", "guards_relationship", "캐릭터가 불편해하는 것이 관계에서 지킬 선을 만듭니다.", 0.58],
+    ["growth", "speech", "tempers_persona_response", "캐릭터가 조심하는 점이 답변의 톤을 다듬습니다.", 0.6],
+    ["boundary", "speech", "guides_persona_speech", "관계 방식이 사용자를 향한 말투를 이끕니다.", 0.6]
+  ];
+
+  for (const [sourceKey, targetKey, relationType, explanation, weight] of links) {
+    const source = nodesByKey.get(sourceKey);
+    const target = nodesByKey.get(targetKey);
+    if (!source || !target || source.id === target.id) continue;
+    store.upsertEdge({
+      personaId: persona.id,
+      sourceId: source.id,
+      targetId: target.id,
+      relationType,
+      layer: "persona",
+      weight,
+      confidence: 0.84,
+      activation: 0.72,
+      properties: {
+        ontologyEdge: true,
+        explanation
+      }
+    }, context);
+  }
+}
+
+function seedPersonaTemplateMemory({ store, persona, assistant, relationship, context }) {
+  const memories = getPersonaTemplateProfile(persona.templateKey);
+  if (!memories.length) return;
+
+  const nodesByKey = new Map();
+  for (const memory of memories) {
+    const memoryNode = store.upsertNode({
+      canonicalKey: `template:${persona.templateKey}:${memory.key}`,
+      layer: "persona",
+      type: memory.type,
+      label: memory.label,
+      summary: memory.summary,
+      importance: memory.importance ?? 0.82,
+      confidence: memory.confidence ?? 0.9,
+      activation: memory.activation ?? 0.78,
+      locked: true,
+      properties: {
+        value: memory.value,
+        category: memory.category,
+        sourceRelation: memory.relation,
+        rememberedAs: memory.rememberedAs,
+        ontologyRole: "persona_profile_fact",
+        characterMemory: true,
+        templateKey: persona.templateKey
+      }
+    }, context);
+
+    nodesByKey.set(memory.key, memoryNode);
+
+    store.upsertEdge({
+      personaId: persona.id,
+      sourceId: assistant.id,
+      targetId: memoryNode.id,
+      relationType: memory.relation,
+      layer: "persona",
+      weight: 0.84,
+      confidence: 0.9,
+      activation: 0.82,
+      properties: {
+        ontologyEdge: true,
+        explanation: `${persona.name}는 ${memory.label} 설정을 자신의 캐릭터 기억으로 가지고 있습니다.`
+      }
+    }, context);
+
+    store.upsertEdge({
+      personaId: persona.id,
+      sourceId: memoryNode.id,
+      targetId: assistant.id,
+      relationType: "influences_persona",
+      layer: "persona",
+      weight: 0.72,
+      confidence: 0.86,
+      activation: 0.78,
+      properties: {
+        ontologyEdge: true,
+        explanation: `${memory.label} 기억은 ${persona.name}의 말투와 판단에 반영됩니다.`
+      }
+    }, context);
+
+    store.upsertEdge({
+      personaId: persona.id,
+      sourceId: memoryNode.id,
+      targetId: relationship.id,
+      relationType: "shapes_relationship",
+      layer: "persona",
+      weight: 0.62,
+      confidence: 0.82,
+      activation: 0.72,
+      properties: {
+        ontologyEdge: true,
+        explanation: `${memory.label} 기억은 사용자와 ${persona.name} 사이의 거리감과 분위기를 만듭니다.`
+      }
+    }, context);
+  }
+
+  linkPersonaProfileNodes({ store, persona, context, nodesByKey });
+}
+
 export class MemoryEngine {
   constructor({ store, llm }) {
     this.store = store;
@@ -291,6 +436,14 @@ export class MemoryEngine {
       activation: 0.8,
       properties: { explanation: "쌓인 관계는 페르소나가 더 자연스럽게 답하도록 도와줍니다." }
     }, context);
+
+    seedPersonaTemplateMemory({
+      store: this.store,
+      persona,
+      assistant,
+      relationship,
+      context
+    });
   }
 
   bootstrap(personaId) {
@@ -915,12 +1068,16 @@ export class MemoryEngine {
         "personality_trait",
         "strength",
         "growth_area"
-      ].includes(node.type))
+      ].includes(node.type) || PERSONA_PROFILE_TYPES.has(node.type))
       .slice(0, 12)
       .map((node) => node.label);
     const ontologyFacts = personaNodes
       .filter((node) => node.properties?.ontologyRole === "user_profile_fact")
       .slice(0, 36)
+      .map((node) => node.properties?.rememberedAs || node.summary || node.label);
+    const personaMemories = personaNodes
+      .filter((node) => node.properties?.ontologyRole === "persona_profile_fact")
+      .slice(0, 24)
       .map((node) => node.properties?.rememberedAs || node.summary || node.label);
 
     const role = turnResult.intent === "build_request" ? "구현 파트너" : turnResult.intent === "planning" ? "기획 파트너" : "대화 파트너";
@@ -941,6 +1098,7 @@ export class MemoryEngine {
       extractedFacts: turnResult.facts.map((fact) => fact.summary),
       longTermInfluences: styleSignals,
       ontologyFacts,
+      personaMemories,
       sessionFocus: sessionNodes.map((node) => node.label),
       recentTurns: turnNodes.map((node) => node.label),
       avoid
@@ -1049,6 +1207,7 @@ export class MemoryEngine {
 
   composeLlmMessages({ persona, sessionId, personaState, memoryContext }) {
     const context = memoryContext || this.buildConversationMemoryContext({ persona, sessionId, content: "", personaState });
+    const personaMemories = personaState.personaMemories || [];
     const transcriptText = context.transcriptMatches.length
       ? context.transcriptMatches.map((message) => `- ${message.sessionTitle} / ${roleName(message.role)}: ${message.content}`).join("\n")
       : "이번 질문에는 원문 검색이 필요하지 않음";
@@ -1059,6 +1218,7 @@ export class MemoryEngine {
           `너는 "${persona.name}"라는 페르소나다.`,
           "반드시 한국어로 답한다.",
           persona.systemPrompt ? `페르소나 지침: ${persona.systemPrompt}` : "",
+          `이 페르소나의 캐릭터 기억: ${personaMemories.join(" / ") || "아직 없음"}`,
           "아래 기억과 연결 맥락을 자연스럽게 참고하되, 사용자가 묻지 않은 개인정보를 과하게 나열하지 않는다.",
           "사용자의 감정이나 고민이 보이면 먼저 짧게 받아주고, 기억은 '기억해보니'처럼 과시하지 말고 대화 속에 자연스럽게 섞는다.",
           "친한 동료처럼 담백하게 말하되, 기본은 편안한 존댓말이다. 사용자가 명확히 반말을 원하거나 페르소나 지침이 반말을 요구할 때만 반말을 쓴다.",

@@ -23,13 +23,13 @@ The first decision is not model or provider. It is who the user wants to talk to
 
 Default characters:
 
-- 서린: calm emotional companion
-- 하온: warm everyday friend
-- 이안: strategic thinking partner
-- 미로: creative ideation partner
-- 노아: grounded execution coach
+- 서린: 31-year-old night record keeper who remembers emotional nuance and speaks with calm warmth
+- 하온: 27-year-old community host who notices everyday mood shifts and keeps conversation easy
+- 이안: 36-year-old service strategist who turns goals, constraints, and decisions into clear next steps
+- 미로: 25-year-old concept artist who expands ideas into scenes, names, and concrete creative directions
+- 노아: 33-year-old routine coach who respects the user's pace and makes the next small action visible
 
-Default character templates are permanent. Users can reset their memories, but cannot delete the base cast.
+Default character templates are permanent. Users can reset their memories, but cannot delete the base cast. Each template starts with ontology memories for age, occupation, background, personality, signature traits, strengths, rough edges, likes, aversions, speech style, and relationship style.
 
 ### 2. Visible Memory
 
@@ -85,6 +85,7 @@ Planned local controls:
 ### Phase 1: Character Management
 
 - Locked default templates
+- Detailed default character memory seeding
 - Custom character creation
 - Character duplicate/fork
 - Character memory reset

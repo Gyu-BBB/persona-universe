@@ -30,7 +30,8 @@ Ollama is used by default when a local model is available. OpenAI is optional.
 
 - GPT API and Ollama provider support
 - Persona-scoped memory and reset
-- Locked default character templates plus custom characters
+- Locked default character templates with seeded character memories for age, occupation, personality, tone, preferences, strengths, and relationship style
+- Custom characters
 - Dynamic hybrid conversation context:
   - recent raw history for short-term flow
   - compressed session memory for longer conversations

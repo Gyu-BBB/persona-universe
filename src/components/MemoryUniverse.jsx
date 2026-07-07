@@ -45,9 +45,28 @@ const RELATION_LABELS = {
   concerned_about: "걱정",
   feels_tension_about: "긴장 지점",
   feels_strained_by: "힘들어함",
-  has_goal: "목표",
-  wants_to_build: "만들고 싶은 것",
-  explains_age: "나이 해석 근거",
+    has_goal: "목표",
+    wants_to_build: "만들고 싶은 것",
+    has_persona_age: "캐릭터 나이",
+    has_persona_occupation: "캐릭터 직업",
+    has_persona_background: "캐릭터 배경",
+    has_persona_trait: "캐릭터 성격",
+    has_persona_signature: "캐릭터 특징",
+    has_persona_strength: "캐릭터 강점",
+    has_persona_growth_edge: "조심하는 점",
+    likes_persona: "좋아하는 것",
+    avoids_persona: "불편한 것",
+    has_persona_speech: "말투",
+    has_persona_boundary: "관계 방식",
+    supports_persona_role: "역할 배경",
+    shapes_persona_signature: "특징 형성",
+    shapes_persona_speech: "말투 형성",
+    supports_persona_signature: "특징 보강",
+    softens_relationship: "관계 온도",
+    guards_relationship: "관계의 선",
+    tempers_persona_response: "응답 다듬기",
+    guides_persona_speech: "말투 방향",
+    explains_age: "나이 해석 근거",
   context_for_role: "역할 맥락",
   performs_responsibility: "업무 수행",
   supports_role: "역할 보강",
@@ -116,10 +135,21 @@ const TYPE_LABELS = {
   routine: "루틴",
   hobby: "취미",
   favorite_food: "좋아하는 음식",
-  favorite_color: "좋아하는 색",
-  interest: "관심 분야",
-  goal: "목표"
-};
+    favorite_color: "좋아하는 색",
+    interest: "관심 분야",
+    goal: "목표",
+    persona_age: "캐릭터 나이",
+    persona_occupation: "캐릭터 직업",
+    persona_background: "캐릭터 배경",
+    persona_trait: "캐릭터 성격",
+    persona_signature: "캐릭터 특징",
+    persona_strength: "캐릭터 강점",
+    persona_growth_edge: "조심하는 점",
+    persona_preference: "캐릭터 취향",
+    persona_aversion: "불편한 것",
+    persona_speech: "캐릭터 말투",
+    persona_boundary: "관계 방식"
+  };
 
 function relationLabel(type) {
   return RELATION_LABELS[type] || type;
@@ -153,8 +183,10 @@ function memoryKind(node) {
   if (["phone", "email", "messenger_id"].includes(node.type)) return "contact";
   if (["workplace_type", "occupation", "responsibility", "presentation", "key_metric", "metric_reason", "metric_driver", "metric_risk", "data_source", "key_message"].includes(node.type)) return "work";
   if (["education", "major", "activity", "experience"].includes(node.type)) return "education";
-  if (["strength", "personality_trait", "growth_area", "current_concern", "tension_point"].includes(node.type)) return "trait";
-  if (["hobby", "favorite_food", "favorite_color", "preference", "response_preference", "routine", "collaboration_style"].includes(node.type)) return "preference";
+    if (["strength", "personality_trait", "growth_area", "current_concern", "tension_point", "persona_trait", "persona_signature", "persona_strength", "persona_growth_edge", "persona_speech", "persona_boundary"].includes(node.type)) return "trait";
+    if (["hobby", "favorite_food", "favorite_color", "preference", "response_preference", "routine", "collaboration_style", "persona_preference", "persona_aversion"].includes(node.type)) return "preference";
+    if (["persona_age", "persona_background"].includes(node.type)) return "profile";
+    if (node.type === "persona_occupation") return "work";
   if (["interest", "memory_system", "visualization"].includes(node.type)) return "interest";
   if (["goal", "product_capability", "memory_behavior"].includes(node.type)) return "goal";
   if (node.type === "project") return "project";
@@ -167,6 +199,7 @@ function colorForNode(node) {
 
 function colorForEdge(edge) {
   if (edge.relation_type.includes("relationship") || edge.relation_type === "participates_in") return COLORS.relationship;
+  if (["has_persona_age", "has_persona_background"].includes(edge.relation_type)) return COLORS.profile;
   if (["has_phone", "has_email", "has_messenger_id"].includes(edge.relation_type)) return COLORS.contact;
   if ([
     "works_as",
@@ -192,11 +225,13 @@ function colorForEdge(edge) {
     "metric_has_risk",
     "metric_uses_source",
     "message_frames_presentation",
-    "metric_supports_message"
+    "metric_supports_message",
+    "has_persona_occupation",
+    "supports_persona_role"
   ].includes(edge.relation_type)) return COLORS.work;
   if (["studied_at", "majored_in", "participated_in", "has_experience", "has_major", "included_activity", "developed_experience"].includes(edge.relation_type)) return COLORS.education;
-  if (["has_strength", "has_trait", "has_growth_area", "concerned_about", "feels_tension_about", "supports_responsibility", "balances_growth_area", "has_tension_point"].includes(edge.relation_type)) return COLORS.trait;
-  if (edge.relation_type.includes("prefers") || edge.relation_type === "dislikes" || ["has_hobby", "likes_food", "likes_color", "prefers_response_style", "has_routine", "comforted_by_response_style", "routine_reflects_interest"].includes(edge.relation_type)) return COLORS.preference;
+    if (["has_strength", "has_trait", "has_growth_area", "concerned_about", "feels_tension_about", "supports_responsibility", "balances_growth_area", "has_tension_point", "has_persona_trait", "has_persona_signature", "has_persona_strength", "has_persona_growth_edge", "has_persona_speech", "has_persona_boundary", "shapes_persona_signature", "shapes_persona_speech", "supports_persona_signature", "tempers_persona_response", "guides_persona_speech"].includes(edge.relation_type)) return COLORS.trait;
+    if (edge.relation_type.includes("prefers") || edge.relation_type === "dislikes" || ["has_hobby", "likes_food", "likes_color", "prefers_response_style", "has_routine", "comforted_by_response_style", "routine_reflects_interest", "likes_persona", "avoids_persona", "softens_relationship", "guards_relationship"].includes(edge.relation_type)) return COLORS.preference;
   if (["has_goal", "wants_to_build", "supports_goal", "contributes_to_goal", "aligned_with_goal"].includes(edge.relation_type)) return COLORS.goal;
   if (["interested_in", "alternative_contact"].includes(edge.relation_type)) return COLORS.interest;
   if (["superseded_by", "updates_memory"].includes(edge.relation_type)) return 0xff3b81;

@@ -34,10 +34,18 @@ export function ChatPanel({
   const templatePersonas = useMemo(() => (personas || []).filter((item) => item.templateKey), [personas]);
   const customPersonas = useMemo(() => (personas || []).filter((item) => !item.templateKey), [personas]);
   const isTemplatePersona = Boolean(persona?.templateKey);
+  const characterTags = useMemo(() => {
+    const wanted = new Set(["age", "occupation", "trait", "speech", "boundary"]);
+    return (persona?.characterProfile || [])
+      .filter((item) => wanted.has(item.key))
+      .map((item) => item.value || item.label)
+      .slice(0, 5);
+  }, [persona]);
 
   function PersonaButton({ item }) {
     const isActive = item.id === persona?.id;
     const avatar = item.avatar || item.name?.trim()?.[0] || "P";
+    const occupation = item.characterProfile?.find((profile) => profile.key === "occupation")?.value;
     return (
       <button
         type="button"
@@ -50,7 +58,7 @@ export function ChatPanel({
         <span className="persona-tile-avatar">{avatar}</span>
         <span className="persona-tile-copy">
           <strong>{item.name}</strong>
-          <small>{item.templateKey ? "기본" : "내 캐릭터"}</small>
+          <small>{item.templateKey ? `기본${occupation ? ` · ${occupation}` : ""}` : "내 캐릭터"}</small>
         </span>
         {item.templateKey ? <LockKeyhole size={13} /> : null}
       </button>
@@ -88,14 +96,19 @@ export function ChatPanel({
   }
 
   return (
-    <section className="chat-panel">
-      {persona ? (
-        <section className="persona-card" style={{ "--active-persona": persona.color || "#facc15" }}>
-          <div className="persona-avatar">{personaInitial}</div>
-          <div>
-            <strong>{persona.name}</strong>
-            <p>{persona.description || "대화 속 기억을 바탕으로 반응하는 페르소나"}</p>
-          </div>
+	    <section className="chat-panel">
+	      {persona ? (
+	        <section className="persona-card" style={{ "--active-persona": persona.color || "#facc15" }}>
+	          <div className="persona-avatar">{personaInitial}</div>
+	          <div>
+	            <strong>{persona.name}</strong>
+	            <p>{persona.description || "대화 속 기억을 바탕으로 반응하는 페르소나"}</p>
+	            {characterTags.length ? (
+	              <div className="character-tags">
+	                {characterTags.map((tag) => <span key={tag}>{tag}</span>)}
+	              </div>
+	            ) : null}
+	          </div>
           <div className="persona-actions">
             <button className="icon-button" type="button" onClick={onNewPersona} title="캐릭터 생성" disabled={isSending}>
               <Plus size={17} />

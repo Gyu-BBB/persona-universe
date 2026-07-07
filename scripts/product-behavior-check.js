@@ -28,6 +28,30 @@ const templateNames = new Set(["서린", "하온", "이안", "미로", "노아"]
 const seededTemplates = personas.filter((persona) => templateNames.has(persona.name));
 assert(seededTemplates.length >= 5, `expected at least 5 seeded templates, got ${seededTemplates.map((item) => item.name).join(", ")}`);
 assert(seededTemplates.every((persona) => persona.avatar && persona.description && persona.systemPrompt), "seeded templates need character metadata");
+assert(seededTemplates.every((persona) => (persona.characterProfile || []).length >= 10), "seeded templates need detailed character profile memories");
+
+for (const template of seededTemplates) {
+  engine.seedCore(template.id);
+  const session = store.getOrCreateDefaultSession(template.id);
+  const state = engine.getState({ personaId: template.id, sessionId: session.id });
+  const characterNodes = state.graph.nodes.filter((node) => node.properties?.ontologyRole === "persona_profile_fact");
+  const characterLabels = characterNodes.map((node) => node.label);
+  const characterRelations = new Set(state.graph.edges.map((edge) => edge.relation_type));
+  assert(characterNodes.length >= 10, `${template.name} character memory nodes are too shallow: ${characterLabels.join(", ")}`);
+  assert(characterLabels.some((label) => label.startsWith("나이:")), `${template.name} age memory is missing`);
+  assert(characterLabels.some((label) => label.startsWith("직업:")), `${template.name} occupation memory is missing`);
+  assert(characterLabels.some((label) => label.startsWith("성격:")), `${template.name} trait memory is missing`);
+  assert(characterLabels.some((label) => label.startsWith("말투:")), `${template.name} speech memory is missing`);
+  assert(characterLabels.some((label) => label.startsWith("관계 방식:")), `${template.name} relationship style memory is missing`);
+  assert(characterRelations.has("has_persona_age"), `${template.name} has no persona age ontology edge`);
+  assert(characterRelations.has("has_persona_occupation"), `${template.name} has no persona occupation ontology edge`);
+  assert(characterRelations.has("has_persona_trait"), `${template.name} has no persona trait ontology edge`);
+  assert(characterRelations.has("shapes_persona_speech"), `${template.name} has no profile-to-profile speech edge`);
+  assert(state.summaries.persona.some((item) => /나이:|직업:|성격:|말투:|관계 방식:/.test(item)), `${template.name} persona summary does not expose character memories`);
+  const validation = store.validateOntology(template.id);
+  assert(validation.ok, `${template.name} ontology validation failed: ${JSON.stringify(validation)}`);
+}
+
 try {
   store.deletePersona(seededTemplates[0].id);
   throw new Error("locked template deletion unexpectedly succeeded");
@@ -84,6 +108,10 @@ try {
 
   console.log("product behavior", {
     templates: seededTemplates.map((persona) => persona.name),
+    characterMemoryNodes: seededTemplates.map((persona) => ({
+      name: persona.name,
+      count: persona.characterProfile.length
+    })),
     deletedPersonaRemoved: !afterDelete.includes(deletionPersona.id),
     emotionalNode: "힘든 일: 회사일",
     turnSummary: state.summaries.turn.slice(0, 3),
