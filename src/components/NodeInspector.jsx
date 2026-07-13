@@ -1,4 +1,4 @@
-import { GitCommitHorizontal, LockKeyhole, Maximize2, Network } from "lucide-react";
+import { ArrowLeft, GitCommitHorizontal, LockKeyhole, Maximize2, Network } from "lucide-react";
 
 const RELATION_LABELS = {
   participates_in: "대화 관계에 참여",
@@ -43,6 +43,7 @@ const RELATION_LABELS = {
     has_goal: "사용자의 목표",
     wants_to_build: "사용자가 만들고 싶은 것",
     has_persona_age: "캐릭터의 나이",
+    has_persona_mbti: "캐릭터의 MBTI",
     has_persona_occupation: "캐릭터의 직업",
     has_persona_background: "캐릭터의 배경",
     has_persona_trait: "캐릭터의 성격",
@@ -53,6 +54,8 @@ const RELATION_LABELS = {
     avoids_persona: "캐릭터가 불편해하는 것",
     has_persona_speech: "캐릭터의 말투",
     has_persona_boundary: "캐릭터의 관계 방식",
+    frames_persona_trait: "성격을 바라보는 관점",
+    uses_relationship_speech: "우리 사이의 말투",
     supports_persona_role: "배경이 역할을 받침",
     shapes_persona_signature: "역할이 특징을 만듦",
     shapes_persona_speech: "성격이 말투에 스밈",
@@ -128,6 +131,7 @@ const TYPE_LABELS = {
     interest: "관심 분야",
     goal: "목표",
     persona_age: "캐릭터 나이",
+    persona_mbti: "캐릭터 MBTI",
     persona_occupation: "캐릭터 직업",
     persona_background: "캐릭터 배경",
     persona_trait: "캐릭터 성격",
@@ -137,7 +141,8 @@ const TYPE_LABELS = {
     persona_preference: "캐릭터 취향",
     persona_aversion: "불편한 것",
     persona_speech: "캐릭터 말투",
-    persona_boundary: "관계 방식"
+    persona_boundary: "관계 방식",
+    relationship_speech: "우리 사이의 말투"
   };
 
 function relationLabel(type) {
@@ -180,6 +185,8 @@ function relationTone(type) {
       guards_relationship: "캐릭터가 불편해하는 지점이 관계에서 지킬 선을 만들어요.",
       tempers_persona_response: "캐릭터가 조심하는 점이 답변을 과하지 않게 다듬어요.",
       guides_persona_speech: "캐릭터의 관계 방식이 사용자를 향한 말투를 이끌어요.",
+      frames_persona_trait: "MBTI는 캐릭터의 성격을 이해하는 하나의 관점이에요.",
+      uses_relationship_speech: "둘이 대화할 때 편하게 쓰기로 한 말투예요.",
       superseded_by: "나중에 들어온 기억이 더 최신이에요.",
     updates_memory: "이 기억이 이전 내용을 새로 정리했어요.",
     grounds_relationship: "이 기억은 대화의 거리감과 이해를 바꿔요.",
@@ -215,7 +222,7 @@ function relationRows(graph, node) {
     });
 }
 
-export function NodeInspector({ node, edge, graph }) {
+export function NodeInspector({ node, edge, graph, onClear }) {
   if (!node && !edge) {
     return (
       <section className="inspector">
@@ -230,7 +237,10 @@ export function NodeInspector({ node, edge, graph }) {
     const target = findLabel(graph, edge.target_id);
     return (
       <section className="inspector">
-        <h2><GitCommitHorizontal size={17} /> 함께 떠오르는 기억</h2>
+        <header className="inspector-header">
+          <h2><GitCommitHorizontal size={17} /> 함께 떠오르는 기억</h2>
+          {onClear ? <button className="icon-button" type="button" onClick={onClear} title="기억 노트로 돌아가기"><ArrowLeft size={17} /></button> : null}
+        </header>
         <p>{compactText(edge.properties?.explanation || relationTone(edge.relation_type), 170)}</p>
         <div className="memory-pair">
           <span>{source}</span>
@@ -247,10 +257,13 @@ export function NodeInspector({ node, edge, graph }) {
 
   return (
     <section className="inspector">
-      <h2>
-        {node.locked ? <LockKeyhole size={17} /> : <Maximize2 size={17} />}
-        {node.label}
-      </h2>
+      <header className="inspector-header">
+        <h2>
+          {node.locked ? <LockKeyhole size={17} /> : <Maximize2 size={17} />}
+          {node.label}
+        </h2>
+        {onClear ? <button className="icon-button" type="button" onClick={onClear} title="기억 노트로 돌아가기"><ArrowLeft size={17} /></button> : null}
+      </header>
       <p>{memoryText}</p>
       <div className="memory-meta">
         <span>{typeLabel(node.type)}</span>

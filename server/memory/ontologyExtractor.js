@@ -33,20 +33,22 @@ function addFact(facts, {
   relation,
   summary,
   rememberedAs,
-  category = "profile"
+  category = "profile",
+  subject = "user"
 }) {
   const clean = cleanValue(value);
   if (!clean || clean.length < 2) return;
   const factSummary = summary && summary.includes(clean) ? summary : summary ? `${summary}: ${clean}` : `사용자의 ${labelPrefix}: ${clean}`;
   pushUnique(facts, {
     type,
-    key: `user:${type}:${normalizeKey(clean)}`,
+    key: `${subject}:${type}:${normalizeKey(clean)}`,
     label: `${labelPrefix}: ${clean}`,
     value: clean,
     relation,
     summary: factSummary,
     rememberedAs: rememberedAs || `대화 상대 사용자의 ${labelPrefix}: ${clean}`,
-    category
+    category,
+    subject
   });
 }
 
@@ -661,6 +663,26 @@ export function extractOntologyFacts(content) {
       summary: `사용자는 ${responsePreferenceMatch[1]} 방식을 선호함`,
       rememberedAs: `답변을 받을 때 선호하는 방식: ${responsePreferenceMatch[1]}`,
       category: "preference"
+    });
+  }
+
+  const informalSpeech = text.match(/(?:반말로\s*(?:말|얘기|대화)|말\s*놓(?:자|아도|고)|편하게\s*(?:말|얘기)해)/);
+  const politeSpeech = text.match(/(?:존댓말로\s*(?:말|얘기|대화)|존댓말을\s*(?:써|사용)|말을\s*높여)/);
+  const speechPreference = (!informalSpeech && !politeSpeech)
+    ? null
+    : !politeSpeech || (informalSpeech && informalSpeech.index > politeSpeech.index)
+      ? "편한 반말"
+      : "편안한 존댓말";
+  if (speechPreference) {
+    addFact(facts, {
+      type: "relationship_speech",
+      labelPrefix: "우리의 말투",
+      value: speechPreference,
+      relation: "uses_relationship_speech",
+      summary: `사용자와 페르소나는 ${speechPreference}로 대화함`,
+      rememberedAs: `이 사용자와는 ${speechPreference}로 대화한다.`,
+      category: "relationship",
+      subject: "relationship"
     });
   }
 

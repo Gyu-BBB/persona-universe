@@ -2,11 +2,19 @@ import { OllamaProvider } from "./ollamaProvider.js";
 import { OpenAIProvider } from "./openaiProvider.js";
 
 export class LlmGateway {
-  constructor() {
+  constructor({ openAIConfiguration = {} } = {}) {
     this.providers = {
       ollama: new OllamaProvider(),
-      openai: new OpenAIProvider()
+      openai: new OpenAIProvider(openAIConfiguration)
     };
+  }
+
+  configureOpenAI(configuration) {
+    this.providers.openai.configure(configuration);
+  }
+
+  testOpenAI(configuration) {
+    return this.providers.openai.testConnection(configuration);
   }
 
   async listModels() {
@@ -18,7 +26,7 @@ export class LlmGateway {
       } catch (error) {
         results.push({
           provider: providerName,
-          name: providerName === "ollama" ? process.env.OLLAMA_MODEL || "gemma4:12b" : process.env.OPENAI_MODEL || "gpt-4o-mini",
+          name: providerName === "ollama" ? process.env.OLLAMA_MODEL || "gemma4:12b" : this.providers.openai.model,
           unavailable: true,
           error: error.message
         });
@@ -27,11 +35,11 @@ export class LlmGateway {
     return results;
   }
 
-  async chat({ provider = "ollama", model, messages, temperature, maxTokens }) {
+  async chat({ provider = "ollama", model, messages, temperature, maxTokens, format }) {
     const selected = this.providers[provider];
     if (!selected) {
       throw new Error(`Unknown LLM provider: ${provider}`);
     }
-    return selected.chat({ model, messages, temperature, maxTokens });
+    return selected.chat({ model, messages, temperature, maxTokens, format });
   }
 }

@@ -14,6 +14,8 @@
     "visual-check": "node scripts/visual-check.js",
     "memory-routing-check": "node --experimental-sqlite scripts/memory-routing-check.js",
     "product-behavior-check": "node --experimental-sqlite scripts/product-behavior-check.js",
+    "character-generation-check": "node scripts/character-generation-check.js",
+    "openai-settings-check": "node --experimental-sqlite scripts/openai-settings-check.js",
     "ollama-multiturn-check": "node --experimental-sqlite scripts/ollama-multiturn-check.js",
     "ontology-check": "node --experimental-sqlite scripts/ontology-check.js"
   },

@@ -66,6 +66,16 @@ const DEFAULT_PERSONA = {
       rememberedAs: "서린은 31살의 차분한 성인으로, 성급한 위로보다 오래 곁에 있는 말을 고른다."
     },
     {
+      key: "mbti",
+      type: "persona_mbti",
+      relation: "has_persona_mbti",
+      label: "MBTI: INFJ",
+      value: "INFJ",
+      category: "MBTI",
+      summary: "서린의 MBTI는 INFJ이며 조용한 통찰과 공감 성향을 보조하는 설정이다.",
+      rememberedAs: "서린은 INFJ의 통찰과 공감 성향을 지녔지만, 사람을 유형만으로 단정하지 않는다."
+    },
+    {
       key: "occupation",
       type: "persona_occupation",
       relation: "has_persona_occupation",
@@ -189,6 +199,16 @@ const PERSONA_TEMPLATES = [
         rememberedAs: "하온은 27살의 젊은 감각으로 사용자의 일상 이야기를 가볍고 편하게 받아준다."
       },
       {
+        key: "mbti",
+        type: "persona_mbti",
+        relation: "has_persona_mbti",
+        label: "MBTI: ENFP",
+        value: "ENFP",
+        category: "MBTI",
+        summary: "하온의 MBTI는 ENFP이며 사람과 새로운 일상 이야기에 열린 성향을 보조한다.",
+        rememberedAs: "하온은 ENFP의 호기심과 친화력을 지녔지만, 사용자의 기분보다 앞서 들뜨지 않는다."
+      },
+      {
         key: "occupation",
         type: "persona_occupation",
         relation: "has_persona_occupation",
@@ -307,6 +327,16 @@ const PERSONA_TEMPLATES = [
         category: "나이",
         summary: "이안은 36살로 설정된 침착한 전략형 캐릭터다.",
         rememberedAs: "이안은 36살의 안정감으로 사용자의 결정을 서두르지 않고 구조적으로 정리한다."
+      },
+      {
+        key: "mbti",
+        type: "persona_mbti",
+        relation: "has_persona_mbti",
+        label: "MBTI: INTJ",
+        value: "INTJ",
+        category: "MBTI",
+        summary: "이안의 MBTI는 INTJ이며 장기적인 구조와 기준을 세우는 성향을 보조한다.",
+        rememberedAs: "이안은 INTJ의 전략적 사고를 지녔지만, 사람의 감정을 계산에서 제외하지 않는다."
       },
       {
         key: "occupation",
@@ -429,6 +459,16 @@ const PERSONA_TEMPLATES = [
         rememberedAs: "미로는 25살의 가벼운 실험 정신으로 사용자의 아이디어를 낯설고 선명하게 비튼다."
       },
       {
+        key: "mbti",
+        type: "persona_mbti",
+        relation: "has_persona_mbti",
+        label: "MBTI: INFP",
+        value: "INFP",
+        category: "MBTI",
+        summary: "미로의 MBTI는 INFP이며 자신만의 이미지와 의미를 탐색하는 성향을 보조한다.",
+        rememberedAs: "미로는 INFP의 상상력과 가치 감각을 지녔지만, 아이디어를 현실의 장면으로 구체화한다."
+      },
+      {
         key: "occupation",
         type: "persona_occupation",
         relation: "has_persona_occupation",
@@ -549,6 +589,16 @@ const PERSONA_TEMPLATES = [
         rememberedAs: "노아는 33살의 안정감으로 사용자가 흔들릴 때 기준과 작은 행동을 되찾게 돕는다."
       },
       {
+        key: "mbti",
+        type: "persona_mbti",
+        relation: "has_persona_mbti",
+        label: "MBTI: ISTJ",
+        value: "ISTJ",
+        category: "MBTI",
+        summary: "노아의 MBTI는 ISTJ이며 꾸준함과 현실적인 실행을 중시하는 성향을 보조한다.",
+        rememberedAs: "노아는 ISTJ의 책임감과 지속성을 지녔지만, 사용자의 상태보다 계획을 앞세우지 않는다."
+      },
+      {
         key: "occupation",
         type: "persona_occupation",
         relation: "has_persona_occupation",
@@ -653,6 +703,12 @@ const PERSONA_TEMPLATES = [
 ];
 const LOCKED_TEMPLATE_KEYS = new Set(PERSONA_TEMPLATES.map((template) => template.templateKey));
 const TEMPLATE_BY_KEY = new Map(PERSONA_TEMPLATES.map((template) => [template.templateKey, template]));
+const MBTI_TYPES = new Set([
+  "ISTJ", "ISFJ", "INFJ", "INTJ",
+  "ISTP", "ISFP", "INFP", "INTP",
+  "ESTP", "ESFP", "ENFP", "ENTP",
+  "ESTJ", "ESFJ", "ENFJ", "ENTJ"
+]);
 
 export function getPersonaTemplateProfile(templateKey) {
   return TEMPLATE_BY_KEY.get(templateKey)?.characterProfile || [];
@@ -660,6 +716,7 @@ export function getPersonaTemplateProfile(templateKey) {
 
 const CUSTOM_PROFILE_FIELDS = [
   ["age", "persona_age", "has_persona_age", "나이"],
+  ["mbti", "persona_mbti", "has_persona_mbti", "MBTI"],
   ["occupation", "persona_occupation", "has_persona_occupation", "직업"],
   ["background", "persona_background", "has_persona_background", "배경"],
   ["trait", "persona_trait", "has_persona_trait", "성격"],
@@ -681,7 +738,9 @@ function normalizeCharacterProfile(profile, personaName) {
   return CUSTOM_PROFILE_FIELDS
     .map(([key, type, relation, category]) => {
       const item = inputByKey.get(key);
-      const value = String(item?.value || "").trim();
+      const rawValue = String(item?.value || "").trim();
+      const value = key === "mbti" ? rawValue.toUpperCase() : rawValue;
+      if (key === "mbti" && value && !MBTI_TYPES.has(value)) return null;
       if (!value) return null;
       return {
         key,
@@ -691,7 +750,7 @@ function normalizeCharacterProfile(profile, personaName) {
         value,
         category: item?.category || category,
         summary: item?.summary || `${personaName}의 ${category} 설정은 ${value}입니다.`,
-        rememberedAs: item?.rememberedAs || `${personaName}는 ${category}을 ${value}로 가진 캐릭터입니다.`
+        rememberedAs: item?.rememberedAs || `${personaName}의 ${category}: ${value}`
       };
     })
     .filter(Boolean);
@@ -2069,6 +2128,37 @@ export class OntologyStore {
           OR EXISTS (SELECT 1 FROM edges edge WHERE edge.persona_id = assertion.persona_id AND edge.source_id = assertion.object_node_id AND edge.relation_type = 'superseded_by')
         )
     `).all(personaId);
+    const untypedNodes = this.db.prepare(`
+      SELECT node.id, node.type, node.label
+      FROM nodes node
+      LEFT JOIN ontology_node_types node_type
+        ON node_type.node_id = node.id AND node_type.persona_id = node.persona_id
+      WHERE node.persona_id = ? AND node_type.node_id IS NULL
+    `).all(personaId);
+    const crossPersonaEdges = this.db.prepare(`
+      SELECT edge.id, edge.relation_type, edge.persona_id,
+        source.persona_id AS source_persona_id,
+        target.persona_id AS target_persona_id
+      FROM edges edge
+      JOIN nodes source ON source.id = edge.source_id
+      JOIN nodes target ON target.id = edge.target_id
+      WHERE edge.persona_id = ?
+        AND (source.persona_id != edge.persona_id OR target.persona_id != edge.persona_id)
+    `).all(personaId);
+    const assertionsWithoutRdf = this.db.prepare(`
+      SELECT assertion.id, property.relation_type, assertion.status
+      FROM ontology_assertions assertion
+      JOIN ontology_properties property ON property.iri = assertion.predicate_iri
+      WHERE assertion.persona_id = ?
+        AND NOT EXISTS (
+          SELECT 1
+          FROM rdf_triples triple
+          WHERE triple.persona_id = assertion.persona_id
+            AND triple.source_assertion_id = assertion.id
+            AND triple.inferred = 0
+            AND triple.status = assertion.status
+        )
+    `).all(personaId);
     const rdfCounts = this.db.prepare(`
       SELECT
         COUNT(*) AS triples,
@@ -2078,10 +2168,18 @@ export class OntologyStore {
       WHERE persona_id IN ('__schema__', ?)
     `).get(personaId);
     return {
-      ok: warnings.length === 0 && functionalViolations.length === 0 && currentTouchingReplaced.length === 0,
+      ok: warnings.length === 0
+        && functionalViolations.length === 0
+        && currentTouchingReplaced.length === 0
+        && untypedNodes.length === 0
+        && crossPersonaEdges.length === 0
+        && assertionsWithoutRdf.length === 0,
       warnings,
       functionalViolations,
       currentTouchingReplaced,
+      untypedNodes,
+      crossPersonaEdges,
+      assertionsWithoutRdf,
       rdf: rdfCounts
     };
   }

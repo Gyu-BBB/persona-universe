@@ -1,10 +1,17 @@
-import { Palette, Sparkles, X } from "lucide-react";
+import { LoaderCircle, Palette, Sparkles, WandSparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 const COLORS = ["#5eead4", "#facc15", "#60a5fa", "#c084fc", "#fb7185", "#8bd450"];
+const MBTI_TYPES = [
+  "ISTJ", "ISFJ", "INFJ", "INTJ",
+  "ISTP", "ISFP", "INFP", "INTP",
+  "ESTP", "ESFP", "ENFP", "ENTP",
+  "ESTJ", "ESFJ", "ENFJ", "ENTJ"
+];
 
 const PROFILE_FIELDS = [
   ["age", "나이", "29살"],
+  ["mbti", "MBTI", "INFJ"],
   ["occupation", "직업", "감정 기록가"],
   ["background", "배경", "상담 기록과 커뮤니티 운영 경험"],
   ["trait", "성격", "차분하고 세심함"],
@@ -23,6 +30,7 @@ const INITIAL_FORM = {
   color: COLORS[0],
   description: "",
   age: "29살",
+  mbti: "INFJ",
   occupation: "감정 기록가",
   background: "상담 기록과 커뮤니티 운영 경험",
   trait: "차분하고 세심함",
@@ -45,7 +53,7 @@ function profileFromForm(form) {
         value,
         category: label,
         label: `${label}: ${value}`,
-        rememberedAs: `${form.name}는 ${label}을 ${value}로 가진 캐릭터입니다.`
+        rememberedAs: `${form.name}의 ${label}: ${value}`
       };
     })
     .filter(Boolean);
@@ -59,19 +67,27 @@ function characterDescription(form) {
 function characterPrompt(form) {
   return [
     `${form.name}는 ${form.age}의 ${form.occupation}이다.`,
-    `성격은 ${form.trait}이고, 특징은 ${form.signature}이다.`,
+    `MBTI는 ${form.mbti}이며 성격은 ${form.trait}이고, 특징은 ${form.signature}이다.`,
     `좋아하는 것은 ${form.likes}, 불편해하는 것은 ${form.avoids}이다.`,
     `말투는 ${form.speech}이며, 사용자와의 관계 방식은 ${form.boundary}이다.`,
+    "MBTI를 고정관념처럼 반복하지 말고 배경, 성격, 경험을 함께 반영한다.",
     "사용자의 장기 기억과 현재 감정을 자연스럽게 참고하되, 기록하는 듯한 표현은 피한다."
   ].join(" ");
 }
 
-export function PersonaStudio({ open, isSaving, onClose, onCreate }) {
+export function PersonaStudio({ open, isSaving, provider, onGenerate, onClose, onCreate }) {
   const [form, setForm] = useState(INITIAL_FORM);
+  const [concept, setConcept] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState("");
   const profile = useMemo(() => profileFromForm(form), [form]);
 
   useEffect(() => {
-    if (open) setForm(INITIAL_FORM);
+    if (open) {
+      setForm(INITIAL_FORM);
+      setConcept("");
+      setGenerationError("");
+    }
   }, [open]);
 
   if (!open) return null;
@@ -98,21 +114,60 @@ export function PersonaStudio({ open, isSaving, onClose, onCreate }) {
     });
   }
 
+  async function autoFill() {
+    if (isGenerating || isSaving) return;
+    setIsGenerating(true);
+    setGenerationError("");
+    try {
+      const draft = await onGenerate(concept.trim());
+      setForm((current) => ({
+        ...current,
+        ...draft,
+        color: current.color,
+        avatar: String(draft.avatar || draft.name || "").trim().slice(0, 2)
+      }));
+    } catch (error) {
+      setGenerationError(error.message || "캐릭터를 만들지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <form className="persona-studio" onSubmit={submit} data-visual-target="persona-studio">
         <header className="studio-header">
           <div>
             <h2><Sparkles size={18} /> 캐릭터 스튜디오</h2>
-            <p>{profile.length}개의 캐릭터 기억</p>
+            <p>캐릭터의 인격과 첫인상을 만들어요</p>
           </div>
-          <button className="icon-button" type="button" onClick={onClose} title="닫기" disabled={isSaving}>
+          <button className="icon-button" type="button" onClick={onClose} title="닫기" disabled={isSaving || isGenerating}>
             <X size={17} />
           </button>
         </header>
 
         <section className="studio-body">
           <div className="studio-fields">
+            <section className="studio-generator">
+              <div>
+                <strong><WandSparkles size={16} /> AI로 캐릭터 만들기</strong>
+                <p>한 줄만 적거나 비워 두면 새로운 캐릭터를 완성해요.</p>
+              </div>
+              <textarea
+                value={concept}
+                onChange={(event) => setConcept(event.target.value)}
+                placeholder="예: 무뚝뚝하지만 은근히 다정한 심야 라디오 DJ"
+                rows={2}
+                maxLength={500}
+                disabled={isGenerating || isSaving}
+              />
+              <button type="button" onClick={autoFill} disabled={isGenerating || isSaving}>
+                {isGenerating ? <LoaderCircle className="spin" size={16} /> : <WandSparkles size={16} />}
+                {isGenerating ? "캐릭터를 상상하는 중" : "자동 완성"}
+              </button>
+              <small>{provider === "ollama" ? "현재 로컬 모델을 사용해요." : "현재 OpenAI 모델을 사용해요."}</small>
+              {generationError ? <p className="studio-generation-error">{generationError}</p> : null}
+            </section>
             <label>
               <span>이름</span>
               <input value={form.name} onChange={(event) => update("name", event.target.value)} maxLength={18} required />
@@ -128,7 +183,13 @@ export function PersonaStudio({ open, isSaving, onClose, onCreate }) {
             {PROFILE_FIELDS.map(([key, label, placeholder]) => (
               <label key={key}>
                 <span>{label}</span>
-                <input value={form[key]} onChange={(event) => update(key, event.target.value)} placeholder={placeholder} />
+                {key === "mbti" ? (
+                  <select value={form.mbti} onChange={(event) => update("mbti", event.target.value)}>
+                    {MBTI_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                  </select>
+                ) : (
+                  <input value={form[key]} onChange={(event) => update(key, event.target.value)} placeholder={placeholder} />
+                )}
               </label>
             ))}
           </div>
@@ -157,8 +218,8 @@ export function PersonaStudio({ open, isSaving, onClose, onCreate }) {
         </section>
 
         <footer className="studio-actions">
-          <button type="button" onClick={onClose} disabled={isSaving}>취소</button>
-          <button className="primary-action" type="submit" disabled={isSaving || !form.name.trim()}>
+          <button type="button" onClick={onClose} disabled={isSaving || isGenerating}>취소</button>
+          <button className="primary-action" type="submit" disabled={isSaving || isGenerating || !form.name.trim()}>
             생성
           </button>
         </footer>

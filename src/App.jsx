@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BrainCircuit, GitFork, Layers3, Sparkles } from "lucide-react";
+import { BrainCircuit, ListFilter, MessageCircle, Orbit } from "lucide-react";
 import { api } from "./lib/api.js";
 import { ChatPanel } from "./components/ChatPanel.jsx";
 import { MemoryUniverse } from "./components/MemoryUniverse.jsx";
@@ -11,17 +11,18 @@ import { PersonaStudio } from "./components/PersonaStudio.jsx";
 const DEFAULT_PROVIDER = "ollama";
 
 const GRAPH_SCOPES = [
-  { id: "all", label: "전체" },
-  { id: "user", label: "사용자" },
-  { id: "persona", label: "캐릭터" },
-  { id: "feeling", label: "감정" },
-  { id: "work", label: "일" },
-  { id: "goal", label: "목표" }
+  { id: "user", label: "나와 우리", title: "나와 우리의 기억", description: "나에 대해 알게 된 것과 우리 사이에 쌓인 기억" },
+  { id: "feeling", label: "마음", title: "내 마음", description: "요즘의 감정과 걱정, 힘들었던 순간" },
+  { id: "work", label: "일과 생활", title: "내 일상", description: "일, 역할, 경험과 함께 이어지는 맥락" },
+  { id: "goal", label: "관심과 목표", title: "나의 관심과 목표", description: "관심사와 바라는 일, 앞으로의 목표" },
+  { id: "persona", label: "캐릭터", title: "캐릭터의 세계", description: "이 캐릭터를 이루는 배경과 성격, 취향" },
+  { id: "all", label: "전체 기억", title: "모든 기억", description: "현재 캐릭터 안에 이어진 기억의 전체 모습" }
 ];
 
 const CORE_TYPES = new Set(["person", "persona", "relationship"]);
 const PERSONA_TYPES = new Set([
   "persona_age",
+  "persona_mbti",
   "persona_occupation",
   "persona_background",
   "persona_trait",
@@ -84,7 +85,8 @@ export function App() {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
   const [studioOpen, setStudioOpen] = useState(false);
-  const [graphScope, setGraphScope] = useState("all");
+  const [graphScope, setGraphScope] = useState("user");
+  const [mobileView, setMobileView] = useState("chat");
 
   useEffect(() => {
     let mounted = true;
@@ -112,6 +114,7 @@ export function App() {
     const models = state?.models || [];
     return models.filter((item) => item.provider === provider);
   }, [state, provider]);
+  const activeScope = GRAPH_SCOPES.find((scope) => scope.id === graphScope) || GRAPH_SCOPES[0];
 
   async function sendMessage(content) {
     if (!content.trim() || !state?.session || isSending) return;
@@ -161,7 +164,7 @@ export function App() {
         title: "새 페르소나 세션",
         personaId: state?.persona?.id
       });
-      setState((current) => ({ ...payload, models: current?.models || [] }));
+      setState((current) => ({ ...payload, models: current?.models || [], providerSettings: current?.providerSettings }));
       setSelectedNode(null);
       setSelectedEdge(null);
     } catch (err) {
@@ -177,7 +180,7 @@ export function App() {
     setError("");
     try {
       const payload = await api.loadSession(sessionId);
-      setState((current) => ({ ...payload, models: current?.models || [] }));
+      setState((current) => ({ ...payload, models: current?.models || [], providerSettings: current?.providerSettings }));
       setSelectedNode(null);
       setSelectedEdge(null);
     } catch (err) {
@@ -208,7 +211,7 @@ export function App() {
     setError("");
     try {
       const payload = await api.createPersona(input);
-      setState((current) => ({ ...payload, models: current?.models || [] }));
+      setState((current) => ({ ...payload, models: current?.models || [], providerSettings: current?.providerSettings }));
       setStudioOpen(false);
       setSelectedNode(null);
       setSelectedEdge(null);
@@ -216,6 +219,38 @@ export function App() {
       setError(err.message);
     } finally {
       setIsSending(false);
+    }
+  }
+
+  async function generatePersonaDraft(concept) {
+    const payload = await api.generatePersona({ concept, provider, model });
+    return payload.draft;
+  }
+
+  async function saveOpenAISettings(input) {
+    const payload = await api.saveOpenAISettings(input);
+    setState((current) => ({
+      ...current,
+      models: payload.models,
+      providerSettings: { ...(current?.providerSettings || {}), openai: payload.settings }
+    }));
+
+    if (!payload.settings.configured) {
+      if (provider === "openai") {
+        const ollamaModel = payload.models.find((item) => item.provider === "ollama" && !item.unavailable);
+        setProvider("ollama");
+        setModel(ollamaModel?.name || "");
+      }
+      return { settings: payload.settings, verified: false };
+    }
+
+    setProvider("openai");
+    setModel(payload.settings.model);
+    try {
+      await api.testOpenAISettings();
+      return { settings: payload.settings, verified: true };
+    } catch (verificationError) {
+      return { settings: payload.settings, verified: false, verificationError: verificationError.message };
     }
   }
 
@@ -227,7 +262,7 @@ export function App() {
     setError("");
     try {
       const payload = await api.resetPersona(state.persona.id);
-      setState((current) => ({ ...payload, models: current?.models || [] }));
+      setState((current) => ({ ...payload, models: current?.models || [], providerSettings: current?.providerSettings }));
       setSelectedNode(null);
       setSelectedEdge(null);
     } catch (err) {
@@ -245,7 +280,7 @@ export function App() {
     setError("");
     try {
       const payload = await api.deletePersona(state.persona.id);
-      setState((current) => ({ ...payload, models: current?.models || [] }));
+      setState((current) => ({ ...payload, models: current?.models || [], providerSettings: current?.providerSettings }));
       setSelectedNode(null);
       setSelectedEdge(null);
     } catch (err) {
@@ -272,20 +307,19 @@ export function App() {
       <header className="topbar">
         <div className="brand-lockup">
           <span className="brand-mark"><BrainCircuit size={22} /></span>
-          <div>
-            <h1>Persona Universe</h1>
-            <p>기억이 보이는 대화</p>
-          </div>
+          <h1>Persona Universe</h1>
         </div>
-        <div className="topbar-metrics" aria-label="memory metrics">
-          <span><BrainCircuit size={16} /> {state?.persona?.name || "Persona"}</span>
-          <span><Layers3 size={16} /> 기억 {state?.graph?.nodes?.length || 0}</span>
-          <span><GitFork size={16} /> 연결 {state?.graph?.edges?.length || 0}</span>
-          <span><Sparkles size={16} /> 변화 {state?.graph?.events?.length || 0}</span>
+        <div className="mobile-view-switch" aria-label="화면 보기">
+          <button type="button" className={mobileView === "chat" ? "is-active" : ""} onClick={() => setMobileView("chat")}>
+            <MessageCircle size={16} /> 대화
+          </button>
+          <button type="button" className={mobileView === "memory" ? "is-active" : ""} onClick={() => setMobileView("memory")}>
+            <Orbit size={16} /> 기억
+          </button>
         </div>
       </header>
 
-      <section className="workspace-grid">
+      <section className="workspace-grid" data-mobile-view={mobileView}>
         <ChatPanel
           messages={state?.messages || []}
           session={state?.session}
@@ -296,6 +330,7 @@ export function App() {
           model={model}
           models={activeModels}
           allModels={state?.models || []}
+          openAISettings={state?.providerSettings?.openai}
           isSending={isSending}
           error={error}
           onPersonaChange={selectPersona}
@@ -305,6 +340,7 @@ export function App() {
           onSessionChange={loadSession}
           onProviderChange={updateProvider}
           onModelChange={setModel}
+          onSaveOpenAISettings={saveOpenAISettings}
           onSend={sendMessage}
           onNewSession={createSession}
         />
@@ -312,30 +348,16 @@ export function App() {
         <section className="universe-column">
           <div className="universe-toolbar">
             <div className="universe-title">
-              <strong>{state?.persona?.name || "Persona"}의 기억 우주</strong>
-              <span>{visibleGraph.nodes.length}개의 기억 · {visibleGraph.edges.length}개의 연결</span>
+              <strong>{state?.persona?.name || "캐릭터"}의 시선으로 보는 {activeScope.title}</strong>
+              <span>{activeScope.description}</span>
             </div>
-            <div className="universe-controls">
-              <div className="scope-switch" aria-label="기억 보기">
-                {GRAPH_SCOPES.map((scope) => (
-                  <button
-                    key={scope.id}
-                    type="button"
-                    className={graphScope === scope.id ? "is-active" : ""}
-                    onClick={() => updateGraphScope(scope.id)}
-                  >
-                    {scope.label}
-                  </button>
-                ))}
-              </div>
-              <div className="legend">
-                <span className="legend-dot core" /> 중심
-                <span className="legend-dot relation" /> 관계감
-                <span className="legend-dot profile" /> 프로필
-                <span className="legend-dot work" /> 일
-                <span className="legend-dot goal" /> 목표
-              </div>
-            </div>
+            <label className="memory-scope-control">
+              <ListFilter size={16} />
+              <span className="sr-only">기억 보기</span>
+              <select value={graphScope} onChange={(event) => updateGraphScope(event.target.value)} aria-label="기억 보기">
+                {GRAPH_SCOPES.map((scope) => <option key={scope.id} value={scope.id}>{scope.label}</option>)}
+              </select>
+            </label>
           </div>
           <MemoryUniverse
             graph={visibleGraph}
@@ -349,18 +371,37 @@ export function App() {
               setSelectedNode(null);
             }}
           />
-          <Timeline events={state?.graph?.events || []} />
         </section>
 
-        <aside className="insight-column">
-          <SummaryPanel summaries={state?.summaries} />
-          <NodeInspector node={selectedNode} edge={selectedEdge} graph={state?.graph} />
+        <aside className={`insight-column ${selectedNode || selectedEdge ? "has-selection" : ""}`}>
+          {selectedNode || selectedEdge ? (
+            <NodeInspector
+              node={selectedNode}
+              edge={selectedEdge}
+              graph={state?.graph}
+              onClear={() => {
+                setSelectedNode(null);
+                setSelectedEdge(null);
+              }}
+            />
+          ) : (
+            <>
+              <header className="insight-header">
+                <span>기억 노트</span>
+                <strong>{state?.persona?.name || "캐릭터"}에게 남은 나와의 기억</strong>
+              </header>
+              <SummaryPanel summaries={state?.summaries} personaName={state?.persona?.name} />
+              <Timeline events={state?.graph?.events || []} nodes={state?.graph?.nodes || []} />
+            </>
+          )}
         </aside>
       </section>
 
       <PersonaStudio
         open={studioOpen}
         isSaving={isSending}
+        provider={provider}
+        onGenerate={generatePersonaDraft}
         onClose={() => !isSending && setStudioOpen(false)}
         onCreate={createPersona}
       />

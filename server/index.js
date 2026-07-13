@@ -5,15 +5,19 @@ import { openDatabase, resolveDbPath } from "./db/database.js";
 import { LlmGateway } from "./llm/gateway.js";
 import { MemoryEngine } from "./memory/memoryEngine.js";
 import { OntologyStore } from "./memory/ontologyStore.js";
+import { CharacterGenerator } from "./persona/characterGenerator.js";
+import { AppSettingsStore } from "./settings/appSettingsStore.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "..");
 const port = Number(process.env.PORT || 5174);
 
 const db = openDatabase();
-const llm = new LlmGateway();
+const settings = new AppSettingsStore(db);
+const llm = new LlmGateway({ openAIConfiguration: settings.getOpenAIConfiguration() });
 const store = new OntologyStore(db);
 const memory = new MemoryEngine({ store, llm });
+const characterGenerator = new CharacterGenerator({ llm });
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
@@ -34,10 +38,40 @@ app.get("/api/models", async (_req, res, next) => {
   }
 });
 
+app.get("/api/settings/openai", (_req, res) => {
+  res.json({ settings: settings.getPublicOpenAIConfiguration() });
+});
+
+app.put("/api/settings/openai", async (req, res, next) => {
+  try {
+    const configuration = settings.saveOpenAIConfiguration(req.body || {});
+    llm.configureOpenAI(configuration);
+    res.json({
+      settings: settings.getPublicOpenAIConfiguration(),
+      models: await llm.listModels()
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/settings/openai/test", async (_req, res, next) => {
+  try {
+    const configuration = settings.getOpenAIConfiguration();
+    res.json(await llm.testOpenAI(configuration));
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get("/api/bootstrap", async (_req, res, next) => {
   try {
     const state = memory.bootstrap(_req.query.personaId);
-    res.json({ ...state, models: await llm.listModels() });
+    res.json({
+      ...state,
+      models: await llm.listModels(),
+      providerSettings: { openai: settings.getPublicOpenAIConfiguration() }
+    });
   } catch (error) {
     next(error);
   }
@@ -46,6 +80,16 @@ app.get("/api/bootstrap", async (_req, res, next) => {
 app.post("/api/personas", (req, res, next) => {
   try {
     res.status(201).json(memory.createPersona(req.body || {}));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/personas/generate", async (req, res, next) => {
+  try {
+    const { concept = "", provider = "ollama", model } = req.body || {};
+    const draft = await characterGenerator.generate({ concept, provider, model });
+    res.json({ draft });
   } catch (error) {
     next(error);
   }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
@@ -48,6 +48,7 @@ const RELATION_LABELS = {
     has_goal: "목표",
     wants_to_build: "만들고 싶은 것",
     has_persona_age: "캐릭터 나이",
+    has_persona_mbti: "캐릭터 MBTI",
     has_persona_occupation: "캐릭터 직업",
     has_persona_background: "캐릭터 배경",
     has_persona_trait: "캐릭터 성격",
@@ -58,6 +59,8 @@ const RELATION_LABELS = {
     avoids_persona: "불편한 것",
     has_persona_speech: "말투",
     has_persona_boundary: "관계 방식",
+    frames_persona_trait: "성격을 바라보는 관점",
+    uses_relationship_speech: "우리의 말투",
     supports_persona_role: "역할 배경",
     shapes_persona_signature: "특징 형성",
     shapes_persona_speech: "말투 형성",
@@ -139,6 +142,7 @@ const TYPE_LABELS = {
     interest: "관심 분야",
     goal: "목표",
     persona_age: "캐릭터 나이",
+    persona_mbti: "캐릭터 MBTI",
     persona_occupation: "캐릭터 직업",
     persona_background: "캐릭터 배경",
     persona_trait: "캐릭터 성격",
@@ -148,7 +152,8 @@ const TYPE_LABELS = {
     persona_preference: "캐릭터 취향",
     persona_aversion: "불편한 것",
     persona_speech: "캐릭터 말투",
-    persona_boundary: "관계 방식"
+    persona_boundary: "관계 방식",
+    relationship_speech: "우리의 말투"
   };
 
 function relationLabel(type) {
@@ -178,12 +183,12 @@ function kindLabel(kind) {
 
 function memoryKind(node) {
   if (["person", "persona"].includes(node.type)) return "core";
-  if (node.type === "relationship") return "relationship";
+  if (["relationship", "relationship_speech"].includes(node.type)) return "relationship";
   if (["identity_name", "age", "gender", "birthdate", "residence"].includes(node.type)) return "profile";
   if (["phone", "email", "messenger_id"].includes(node.type)) return "contact";
   if (["workplace_type", "occupation", "responsibility", "presentation", "key_metric", "metric_reason", "metric_driver", "metric_risk", "data_source", "key_message"].includes(node.type)) return "work";
   if (["education", "major", "activity", "experience"].includes(node.type)) return "education";
-    if (["strength", "personality_trait", "growth_area", "current_concern", "tension_point", "persona_trait", "persona_signature", "persona_strength", "persona_growth_edge", "persona_speech", "persona_boundary"].includes(node.type)) return "trait";
+    if (["strength", "personality_trait", "growth_area", "current_concern", "tension_point", "persona_mbti", "persona_trait", "persona_signature", "persona_strength", "persona_growth_edge", "persona_speech", "persona_boundary"].includes(node.type)) return "trait";
     if (["hobby", "favorite_food", "favorite_color", "preference", "response_preference", "routine", "collaboration_style", "persona_preference", "persona_aversion"].includes(node.type)) return "preference";
     if (["persona_age", "persona_background"].includes(node.type)) return "profile";
     if (node.type === "persona_occupation") return "work";
@@ -230,7 +235,7 @@ function colorForEdge(edge) {
     "supports_persona_role"
   ].includes(edge.relation_type)) return COLORS.work;
   if (["studied_at", "majored_in", "participated_in", "has_experience", "has_major", "included_activity", "developed_experience"].includes(edge.relation_type)) return COLORS.education;
-    if (["has_strength", "has_trait", "has_growth_area", "concerned_about", "feels_tension_about", "supports_responsibility", "balances_growth_area", "has_tension_point", "has_persona_trait", "has_persona_signature", "has_persona_strength", "has_persona_growth_edge", "has_persona_speech", "has_persona_boundary", "shapes_persona_signature", "shapes_persona_speech", "supports_persona_signature", "tempers_persona_response", "guides_persona_speech"].includes(edge.relation_type)) return COLORS.trait;
+    if (["has_strength", "has_trait", "has_growth_area", "concerned_about", "feels_tension_about", "supports_responsibility", "balances_growth_area", "has_tension_point", "has_persona_mbti", "has_persona_trait", "has_persona_signature", "has_persona_strength", "has_persona_growth_edge", "has_persona_speech", "has_persona_boundary", "frames_persona_trait", "shapes_persona_signature", "shapes_persona_speech", "supports_persona_signature", "tempers_persona_response", "guides_persona_speech"].includes(edge.relation_type)) return COLORS.trait;
     if (edge.relation_type.includes("prefers") || edge.relation_type === "dislikes" || ["has_hobby", "likes_food", "likes_color", "prefers_response_style", "has_routine", "comforted_by_response_style", "routine_reflects_interest", "likes_persona", "avoids_persona", "softens_relationship", "guards_relationship"].includes(edge.relation_type)) return COLORS.preference;
   if (["has_goal", "wants_to_build", "supports_goal", "contributes_to_goal", "aligned_with_goal"].includes(edge.relation_type)) return COLORS.goal;
   if (["interested_in", "alternative_contact"].includes(edge.relation_type)) return COLORS.interest;
@@ -346,11 +351,6 @@ export function MemoryUniverse({ graph, selectedNode, onNodeSelect, onEdgeSelect
   useEffect(() => {
     selectedNodeRef.current = selectedNode;
   }, [selectedNode]);
-
-  const graphStats = useMemo(() => ({
-    nodes: graph.nodes.length,
-    edges: graph.edges.length
-  }), [graph]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -917,11 +917,6 @@ export function MemoryUniverse({ graph, selectedNode, onNodeSelect, onEdgeSelect
 
   return (
     <div className="memory-universe" ref={hostRef}>
-      <div className="universe-hud">
-        <span>기억 {graphStats.nodes}</span>
-        <span>관계 {graphStats.edges}</span>
-        {selectedNode ? <strong>{selectedNode.label}</strong> : null}
-      </div>
       {tooltip ? (
         <div className={`memory-tooltip ${tooltip.kind || tooltip.layer}`} style={{ left: tooltip.x, top: tooltip.y }}>
           <strong>{tooltip.title}</strong>

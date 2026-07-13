@@ -17,5 +17,10 @@ export function openDatabase() {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new DatabaseSync(dbPath);
   applySchema(db);
+  try {
+    fs.chmodSync(dbPath, 0o600);
+  } catch {
+    // Some filesystems do not expose POSIX permissions.
+  }
   return db;
 }

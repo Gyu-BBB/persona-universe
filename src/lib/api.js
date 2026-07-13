@@ -18,9 +18,21 @@ async function request(path, options = {}) {
 
 export const api = {
   bootstrap: (personaId) => request(`/bootstrap${personaId ? `?personaId=${encodeURIComponent(personaId)}` : ""}`),
+  saveOpenAISettings: ({ apiKey, model, clearApiKey = false }) => request("/settings/openai", {
+    method: "PUT",
+    body: JSON.stringify({ apiKey, model, clearApiKey })
+  }),
+  testOpenAISettings: () => request("/settings/openai/test", {
+    method: "POST",
+    body: JSON.stringify({})
+  }),
   createPersona: (persona) => request("/personas", {
     method: "POST",
     body: JSON.stringify(persona)
+  }),
+  generatePersona: ({ concept, provider, model }) => request("/personas/generate", {
+    method: "POST",
+    body: JSON.stringify({ concept, provider, model })
   }),
   resetPersona: (personaId) => request(`/personas/${personaId}/reset`, {
     method: "POST",

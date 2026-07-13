@@ -41,6 +41,7 @@ const PROFILE_FACT_RELATIONS = new Set([
   "has_goal",
   "wants_to_build",
   "has_persona_age",
+  "has_persona_mbti",
   "has_persona_occupation",
   "has_persona_background",
   "has_persona_trait",
@@ -50,7 +51,8 @@ const PROFILE_FACT_RELATIONS = new Set([
   "likes_persona",
   "avoids_persona",
   "has_persona_speech",
-  "has_persona_boundary"
+  "has_persona_boundary",
+  "uses_relationship_speech"
 ]);
 
 const SEMANTIC_ONTOLOGY_RELATIONS = new Set([
@@ -83,6 +85,7 @@ const SEMANTIC_ONTOLOGY_RELATIONS = new Set([
   "routine_reflects_interest",
   "alternative_contact",
   "supports_persona_role",
+  "frames_persona_trait",
   "shapes_persona_signature",
   "shapes_persona_speech",
   "supports_persona_signature",
@@ -106,7 +109,8 @@ const SINGLE_VALUE_FACT_TYPES = new Set([
   "email",
   "messenger_id",
   "workplace_type",
-  "occupation"
+  "occupation",
+  "relationship_speech"
 ]);
 
 const SEARCH_STOPWORDS = new Set([
@@ -145,6 +149,7 @@ const MEMORY_MODE_LABELS = {
 
 const PERSONA_PROFILE_TYPES = new Set([
   "persona_age",
+  "persona_mbti",
   "persona_occupation",
   "persona_background",
   "persona_trait",
@@ -171,6 +176,10 @@ function subject(text) {
 
 function object(text) {
   return `${text}${hasKoreanBatchim(text) ? "을" : "를"}`;
+}
+
+function topic(text) {
+  return `${text}${hasKoreanBatchim(text) ? "은" : "는"}`;
 }
 
 function memoryValue(node) {
@@ -281,6 +290,7 @@ function coreNodesFor(persona) {
 
 function linkPersonaProfileNodes({ store, persona, context, nodesByKey }) {
   const links = [
+    ["mbti", "trait", "frames_persona_trait", "MBTI는 캐릭터의 성격을 보조하는 하나의 관점입니다.", 0.54],
     ["background", "occupation", "supports_persona_role", "캐릭터의 배경이 현재 역할을 뒷받침합니다.", 0.64],
     ["occupation", "signature", "shapes_persona_signature", "캐릭터의 직업성이 대표 특징을 만듭니다.", 0.62],
     ["trait", "speech", "shapes_persona_speech", "캐릭터의 성격이 말투에 스며듭니다.", 0.66],
@@ -447,6 +457,81 @@ export class MemoryEngine {
       relationship,
       context
     });
+    this.backfillRelationshipFacts({ persona, assistant, relationship });
+  }
+
+  backfillRelationshipFacts({ persona, assistant, relationship }) {
+    const existing = new Set(
+      this.store.getGraph({ personaId: persona.id }).nodes
+        .filter((node) => node.properties?.ontologyRole === "relationship_fact")
+        .map((node) => `${node.type}:${node.properties?.value}`)
+    );
+    const messages = this.store.listPersonaMessages(persona.id, 160)
+      .filter((message) => message.role === "user")
+      .reverse();
+
+    for (const message of messages) {
+      const facts = extractOntologyFacts(message.content).filter((fact) => fact.subject === "relationship");
+      const context = {
+        personaId: persona.id,
+        sessionId: message.session_id,
+        messageId: message.id,
+        eventType: "relationship_backfill"
+      };
+      for (const fact of facts) {
+        const identity = `${fact.type}:${fact.value}`;
+        if (existing.has(identity)) continue;
+        const node = this.store.upsertNode({
+          canonicalKey: fact.key,
+          layer: "persona",
+          type: fact.type,
+          label: fact.label,
+          summary: fact.summary,
+          importance: 0.86,
+          confidence: 0.86,
+          activation: 0.82,
+          properties: {
+            value: fact.value,
+            category: fact.category,
+            sourceRelation: fact.relation,
+            rememberedAs: fact.rememberedAs,
+            ontologyRole: "relationship_fact",
+            subjectScope: "relationship",
+            evidenceMessageId: message.id
+          }
+        }, context);
+        this.store.upsertEdge({
+          personaId: persona.id,
+          sourceId: relationship.id,
+          targetId: node.id,
+          relationType: fact.relation,
+          layer: "persona",
+          weight: 0.86,
+          confidence: 0.86,
+          activation: 0.86,
+          properties: {
+            evidenceMessageId: message.id,
+            explanation: `사용자가 ${persona.name}와 원하는 대화 방식을 관계 기억으로 반영했습니다.`
+          }
+        }, context);
+        this.store.upsertEdge({
+          personaId: persona.id,
+          sourceId: node.id,
+          targetId: assistant.id,
+          relationType: "informs_persona",
+          layer: "persona",
+          weight: 0.78,
+          confidence: 0.82,
+          activation: 0.82,
+          properties: {
+            evidenceMessageId: message.id,
+            explanation: `${persona.name}는 응답할 때 ${fact.label} 기억을 우선합니다.`
+          }
+        }, context);
+        this.linkProfileOntology({ persona, context, factNodeRecords: [{ fact, node }] });
+        existing.add(identity);
+      }
+    }
   }
 
   bootstrap(personaId) {
@@ -608,6 +693,8 @@ export class MemoryEngine {
     const factNodeRecords = [];
 
     for (const fact of facts) {
+      const relationshipFact = fact.subject === "relationship";
+      const factSourceNode = relationshipFact ? relationshipNode : userNode;
       const factNode = this.store.upsertNode({
         canonicalKey: fact.key,
         layer: "persona",
@@ -622,14 +709,15 @@ export class MemoryEngine {
           category: fact.category,
           sourceRelation: fact.relation,
           rememberedAs: fact.rememberedAs,
-          ontologyRole: "user_profile_fact",
+          ontologyRole: relationshipFact ? "relationship_fact" : "user_profile_fact",
+          subjectScope: relationshipFact ? "relationship" : "user",
           evidenceMessageId: message.id
         }
       }, context);
 
       this.store.upsertEdge({
         personaId: persona.id,
-        sourceId: userNode.id,
+        sourceId: factSourceNode.id,
         targetId: factNode.id,
         relationType: fact.relation,
         layer: "persona",
@@ -638,24 +726,28 @@ export class MemoryEngine {
         activation: 0.9,
         properties: {
           evidenceMessageId: message.id,
-          explanation: `사용자의 자기소개에서 "${fact.summary}" 사실을 추출했습니다.`
+          explanation: relationshipFact
+            ? `사용자가 ${persona.name}와 원하는 대화 방식을 관계 기억으로 반영했습니다.`
+            : `사용자의 말에서 "${fact.summary}" 사실을 추출했습니다.`
         }
       }, context);
 
-      this.store.upsertEdge({
-        personaId: persona.id,
-        sourceId: factNode.id,
-        targetId: relationshipNode.id,
-        relationType: "grounds_relationship",
-        layer: "persona",
-        weight: 0.76,
-        confidence: 0.8,
-        activation: 0.82,
-        properties: {
-          evidenceMessageId: message.id,
-          explanation: `${fact.label} 기억은 사용자와 ${persona.name} 사이의 대화 관계를 구체화합니다.`
-        }
-      }, context);
+      if (!relationshipFact) {
+        this.store.upsertEdge({
+          personaId: persona.id,
+          sourceId: factNode.id,
+          targetId: relationshipNode.id,
+          relationType: "grounds_relationship",
+          layer: "persona",
+          weight: 0.76,
+          confidence: 0.8,
+          activation: 0.82,
+          properties: {
+            evidenceMessageId: message.id,
+            explanation: `${fact.label} 기억은 사용자와 ${persona.name} 사이의 대화 관계를 구체화합니다.`
+          }
+        }, context);
+      }
 
       this.store.upsertEdge({
         personaId: persona.id,
@@ -778,7 +870,7 @@ export class MemoryEngine {
     if (!factNodeRecords.length) return;
 
     const graph = this.store.getGraph({ personaId: persona.id });
-    const profileNodes = graph.nodes.filter((node) => node.properties?.ontologyRole === "user_profile_fact");
+    const profileNodes = graph.nodes.filter((node) => ["user_profile_fact", "relationship_fact"].includes(node.properties?.ontologyRole));
     const currentIds = new Set(factNodeRecords.map((record) => record.node.id));
     const currentNodes = profileNodes.filter((node) => currentIds.has(node.id));
     const byType = (types) => profileNodes.filter((node) => types.includes(node.type));
@@ -1070,7 +1162,8 @@ export class MemoryEngine {
         "occupation",
         "personality_trait",
         "strength",
-        "growth_area"
+        "growth_area",
+        "relationship_speech"
       ].includes(node.type) || PERSONA_PROFILE_TYPES.has(node.type))
       .slice(0, 12)
       .map((node) => node.label);
@@ -1081,6 +1174,10 @@ export class MemoryEngine {
     const personaMemories = personaNodes
       .filter((node) => node.properties?.ontologyRole === "persona_profile_fact")
       .slice(0, 24)
+      .map((node) => node.properties?.rememberedAs || node.summary || node.label);
+    const relationshipMemories = personaNodes
+      .filter((node) => node.properties?.ontologyRole === "relationship_fact")
+      .slice(0, 12)
       .map((node) => node.properties?.rememberedAs || node.summary || node.label);
 
     const role = turnResult.intent === "build_request" ? "구현 파트너" : turnResult.intent === "planning" ? "기획 파트너" : "대화 파트너";
@@ -1102,6 +1199,7 @@ export class MemoryEngine {
       longTermInfluences: styleSignals,
       ontologyFacts,
       personaMemories,
+      relationshipMemories,
       sessionFocus: sessionNodes.map((node) => node.label),
       recentTurns: turnNodes.map((node) => node.label),
       avoid
@@ -1211,6 +1309,7 @@ export class MemoryEngine {
   composeLlmMessages({ persona, sessionId, personaState, memoryContext }) {
     const context = memoryContext || this.buildConversationMemoryContext({ persona, sessionId, content: "", personaState });
     const personaMemories = personaState.personaMemories || [];
+    const relationshipMemories = personaState.relationshipMemories || [];
     const transcriptText = context.transcriptMatches.length
       ? context.transcriptMatches.map((message) => `- ${message.sessionTitle} / ${roleName(message.role)}: ${message.content}`).join("\n")
       : "이번 질문에는 원문 검색이 필요하지 않음";
@@ -1221,10 +1320,11 @@ export class MemoryEngine {
           `너는 "${persona.name}"라는 페르소나다.`,
           "반드시 한국어로 답한다.",
           persona.systemPrompt ? `페르소나 지침: ${persona.systemPrompt}` : "",
-          `이 페르소나의 캐릭터 기억: ${personaMemories.join(" / ") || "아직 없음"}`,
+          `이 페르소나의 고유한 설정: ${personaMemories.join(" / ") || "아직 없음"}`,
+          `이 사용자와 쌓인 관계 기억: ${relationshipMemories.join(" / ") || "아직 합의된 관계 방식이 없음"}`,
           "아래 기억과 연결 맥락을 자연스럽게 참고하되, 사용자가 묻지 않은 개인정보를 과하게 나열하지 않는다.",
           "사용자의 감정이나 고민이 보이면 먼저 짧게 받아주고, 기억은 '기억해보니'처럼 과시하지 말고 대화 속에 자연스럽게 섞는다.",
-          "친한 동료처럼 담백하게 말하되, 기본은 편안한 존댓말이다. 사용자가 명확히 반말을 원하거나 페르소나 지침이 반말을 요구할 때만 반말을 쓴다.",
+          "캐릭터의 기본 말투를 유지하되, 이 사용자와 쌓인 관계 기억에 합의된 말투가 있으면 반드시 그 관계 기억을 우선한다.",
           "'확인했어요', '확인했습니다', '알겠습니다', '기억해 둘게요', '참고할게요', '알려주셔서 감사해요', '제대로 알았어요', '정리해 드릴게요', '말씀하신 대로'처럼 시스템이 기록하거나 안내하는 듯한 표현은 피한다.",
           "정정 요청에도 기록 완료처럼 답하지 말고, 정정만 들어온 경우에는 '아, 31살이시군요.'처럼 바뀐 현재 사실만 짧게 받아준다.",
           "답변 선호가 있으면 형식과 길이에 반영한다. 사용자가 짧은 체크리스트를 좋아하면 제목 없이 최대 4개 항목으로 답한다.",
@@ -1388,8 +1488,15 @@ export class MemoryEngine {
     const turn = topByLayer(rawGraph, "turn", 5).filter((node) => node.type === "turn");
     const sessionNodes = topByLayer(rawGraph, "session", 6)
       .filter((node) => !["현재 세션", "새 페르소나 세션"].includes(node.label));
-    const personaNodes = topByLayer(displayGraph, "persona", 8)
-      .filter((node) => node.properties?.memoryStatus !== "replaced");
+    const personaNodes = displayGraph.nodes
+      .filter((node) => node.layer === "persona")
+      .filter((node) => (
+        node.properties?.memoryStatus !== "replaced"
+        && node.properties?.ontologyRole !== "persona_profile_fact"
+        && !["person", "persona", "relationship"].includes(node.type)
+      ))
+      .sort((a, b) => (b.activation + b.importance) - (a.activation + a.importance))
+      .slice(0, 8);
     const recentEvents = rawGraph.events.slice(0, 8);
     const turnItems = uniqueItems([
       ...turn.map((node) => node.label),
@@ -1403,7 +1510,7 @@ export class MemoryEngine {
     return {
       turn: turnItems.length ? turnItems : ["아직 방금 붙잡은 기억은 없어요."],
       session: sessionItems.length ? sessionItems : ["이 대화는 이제 막 시작됐어요."],
-      persona: personaNodes.length ? personaNodes.map((node) => node.label) : [`${persona.name}가 아직 오래 간직한 기억은 적어요.`],
+      persona: personaNodes.map((node) => node.label),
       events: recentEvents.map((event) => event.summary),
       influence: this.buildInfluencePath(displayGraph)
     };
@@ -1414,17 +1521,24 @@ export class MemoryEngine {
     if (!persona) return [];
     return graph.edges
       .filter((edge) => edge.target_id === persona.id || ["influences_persona", "shapes_response", "shapes_relationship"].includes(edge.relation_type))
+      .filter((edge) => {
+        const source = graph.nodes.find((node) => node.id === edge.source_id);
+        return (
+          source?.properties?.ontologyRole !== "persona_profile_fact"
+          && !["person", "persona", "relationship"].includes(source?.type)
+        );
+      })
       .sort((a, b) => b.weight - a.weight)
       .slice(0, 8)
       .map((edge) => {
         const source = graph.nodes.find((node) => node.id === edge.source_id);
         const target = graph.nodes.find((node) => node.id === edge.target_id);
         const sourceLabel = source?.label || "이 기억";
-        const targetLabel = target?.label || "페르소나";
-        if (edge.relation_type === "informs_persona") return `${object(sourceLabel)} 답변에 참고해요.`;
-        if (edge.relation_type === "grounds_relationship") return `${subject(sourceLabel)} 대화의 거리감을 더 구체적으로 만들어요.`;
+        const targetLabel = target?.label || persona.name;
+        if (edge.relation_type === "informs_persona") return `${subject(sourceLabel)} ${persona.name}의 기억에 남아 있어요.`;
+        if (edge.relation_type === "grounds_relationship") return `${subject(sourceLabel)} 우리 사이의 분위기를 만들어요.`;
         if (["influences_persona", "shapes_response", "shapes_relationship"].includes(edge.relation_type)) {
-          return `${subject(sourceLabel)} ${targetLabel}의 말투와 판단에 스며들어요.`;
+          return `${subject(sourceLabel)} ${targetLabel}이 나를 이해하는 방식에 스며들어요.`;
         }
         return `${subject(sourceLabel)} ${targetLabel}와 함께 떠올라요.`;
       });

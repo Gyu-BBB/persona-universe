@@ -18,7 +18,7 @@ export class OllamaProvider {
     }));
   }
 
-  async chat({ model, messages, temperature = 0.5, maxTokens = 700 }) {
+  async chat({ model, messages, temperature = 0.5, maxTokens = 700, format }) {
     const response = await fetch(`${this.baseUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -27,6 +27,7 @@ export class OllamaProvider {
         messages,
         stream: false,
         think: false,
+        ...(format ? { format } : {}),
         keep_alive: "10m",
         options: {
           temperature,
